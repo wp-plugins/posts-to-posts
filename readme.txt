@@ -22,7 +22,7 @@ add_action('init', 'my_connection_types', 100);
 `
 <br>
 
-See [available functions](http://plugins.trac.wordpress.org/browser/posts-to-posts/trunk/api.php).
+See [available functions](http://plugins.trac.wordpress.org/browser/posts-to-posts/tags/0.2/api.php).
 
 
 == Installation ==
