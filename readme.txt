@@ -15,10 +15,12 @@ This plugin allows you to create relationships between posts of different types.
 To register a connection between two post types, write:
 
 `
-function my_connection_types() {
-    p2p_register_connection_type('book', 'author');
+if ( function_exists('p2p_register_connection_type') ) {
+	function my_connection_types() {
+		p2p_register_connection_type('book', 'author');
+	}
+	add_action('init', 'my_connection_types', 100);
 }
-add_action('init', 'my_connection_types', 100);
 `
 <br>
 
