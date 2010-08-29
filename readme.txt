@@ -26,8 +26,7 @@ add_action('init', 'my_connection_types', 100);
 `
 <br>
 
-See [available functions](http://plugins.trac.wordpress.org/browser/posts-to-posts/tags/0.3/api.php).
-
+Links: [API](http://plugins.trac.wordpress.org/browser/posts-to-posts/tags/0.3/api.php) | [Plugin News](http://scribu.net/wordpress/posts-to-posts) | [Author's Site](http://scribu.net)
 
 == Installation ==
 
