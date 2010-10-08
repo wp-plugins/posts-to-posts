@@ -4,159 +4,130 @@
  * Register a connection between two post types.
  * This creates the appropriate meta box in the admin edit screen
  *
- * @param string $post_type_a The first end of the connection
- * @param string|array $post_type_b The second end of the connection
- * @param bool $reciprocal Wether the connection should be reciprocal
+ * @param array $args Can be:
+ *  - 'from' string|array The first end of the connection
+ *  - 'to' string|array The second end of the connection
+ *  - 'title' string The box's title
+ *  - 'reciprocal' bool wether to show the box on both sides of the connection
+ *  - 'box' string A class that handles displaying and saving connections. Default: P2P_Box_Multiple
  */
-function p2p_register_connection_type( $post_type_a, $post_type_b, $reciprocal = false ) {
-	if ( !$ptype = get_post_type_object( $post_type_a ) )
-		return;
+function p2p_register_connection_type( $args ) {
+	$argv = func_get_args();
 
-	if ( empty( $post_type_b ) )
-		return;
+	if ( count( $argv ) > 1 ) {
+		$args = array();
+		list( $args['from'], $args['to'], $args['reciprocal'] ) = $argv;
+	}
 
-	if ( empty( $ptype->can_connect_to ) )
-		$ptype->can_connect_to = array();
-
-	$post_type_b = (array) $post_type_b;
-
-	$ptype->can_connect_to = array_merge( $ptype->can_connect_to, $post_type_b );
-
-	if ( $reciprocal )
-		foreach ( $post_type_b as $ptype_b )
-			p2p_register_connection_type( $ptype_b, $post_type_a, false );
+	foreach ( (array) $args['from'] as $from ) {
+		foreach ( (array) $args['to'] as $to ) {
+			$args['from'] = $from;
+			$args['to'] = $to;
+			P2P_Connection_Types::register( $args );
+		}
+	}
 }
 
 /**
- * Get the registered connection types for a certain post type
+ * Connect a post to one or more other posts
  *
- * @param string $post_type_a The first end of the connection
- *
- * @return array[string] A list of post types
+ * @param int|array $from The first end of the connection
+ * @param int|array $to The second end of the connection
+ * @param array $data additional data about the connection
  */
-function p2p_get_connection_types( $post_type_a ) {
-	return (array) @get_post_type_object( $post_type_a )->can_connect_to;
+function p2p_connect( $from, $to, $data = array() ) {
+	foreach ( (array) $from as $from ) {
+		foreach ( (array) $to as $to ) {
+			P2P_Connections::connect( $from, $to, $data );
+		}
+	}
 }
 
 /**
- * Check wether a connection type is reciprocal
+ * Disconnect a post from or more other posts
  *
- * @param string $post_type_a The first end of the connection
- * @param string $post_type_b The second end of the connection
- *
- * @return bool
+ * @param int|array $from The first end of the connection
+ * @param int|array|string $to The second end of the connection
+ * @param array $data additional data about the connection to filter against
  */
-function p2p_connection_type_is_reciprocal( $post_type_a, $post_type_b ) {
-	return
-		in_array( $post_type_b, p2p_get_connection_types( $post_type_a ) ) &&
-		in_array( $post_type_a, p2p_get_connection_types( $post_type_b ) );
+function p2p_disconnect( $from, $to, $data = array() ) {
+	foreach ( (array) $from as $from ) {
+		foreach ( (array) $to as $to ) {
+			P2P_Connections::disconnect( $from, $to, $data );
+		}
+	}
 }
 
 /**
- * Connect a post to another one
+ * Get a list of connected posts
  *
- * @param int $post_a The first end of the connection
- * @param int|array $post_b The second end of the connection
- * @param bool $reciprocal Wether the connection is reciprocal or not
- */
-function p2p_connect( $post_a, $post_b, $reciprocal = false ) {
-	Posts2Posts::connect( $post_a, $post_b );
-
-	if ( $reciprocal )
-		foreach ( $post_b as $single )
-			Posts2Posts::connect( $single, $post_a );
-}
-
-/**
- * Disconnect a post from another one
+ * @param int $post_id One end of the connection
+ * @param string $direction The direction of the connection. Can be 'to', 'from' or 'both'
+ * @param array $data additional data about the connection to filter against
  *
- * @param int $post_a The first end of the connection
- * @param int|array $post_b The second end of the connection
- * @param bool $reciprocal Wether the connection is reciprocal or not
+ * @return array( p2p_id => post_id )
  */
-function p2p_disconnect( $post_a, $post_b, $reciprocal = false ) {
-	Posts2Posts::disconnect( $post_a, $post_b );
+function p2p_get_connected( $post_id, $direction = 'to', $data = array() ) {
+	if ( 'both' == $direction ) {
+		$to = P2P_Connections::get( $post_id, 'to', $data );
+		$from = P2P_Connections::get( $post_id, 'from', $data );
+		$ids = array_merge( $to, array_diff( $from, $to ) );
+	} else {
+		$ids = P2P_Connections::get( $post_id, $direction, $data );
+	}
 
-	if ( $reciprocal )
-		foreach ( $post_b as $single )
-			Posts2Posts::disconnect( $single, $post_a );
+	return $ids;
 }
 
 /**
  * See if a certain post is connected to another one
  *
- * @param int $post_a The first end of the connection
- * @param int $post_b The second end of the connection
+ * @param int $from The first end of the connection
+ * @param int $to The second end of the connection
+ * @param array $data additional data about the connection to filter against
  *
  * @return bool True if the connection exists, false otherwise
  */
-function p2p_is_connected( $post_a, $post_b, $reciprocal = false ) {
-	$r = Posts2Posts::is_connected( $post_a, $post_b );
+function p2p_is_connected( $from, $to, $data = array() ) {
+	$ids = p2p_get_connected( $from, $to, $data );
 
-	if ( $reciprocal )
-		$r = $r && Posts2Posts::is_connected( $post_b, $post_a );
-
-	return $r;
+	return !empty( $ids );
 }
 
 /**
- * Get the list of connected posts
+ * Delete one or more connections
  *
- * @param int $post_id One end of the connection
- * @param string $direction The direction of the connection. Can be 'to', 'from' or 'both'
- * @param string|array $post_type The post type of the connected posts.
- * @param string $output Can be 'ids' or 'objects'
+ * @param int|array $p2p_id Connection ids
  *
- * @return array A list of post_ids if $output = 'ids'
- * @return object A WP_Query instance otherwise
+ * @return int Number of connections deleted
  */
-function p2p_get_connected( $post_id, $direction = 'to', $post_type = 'any', $output = 'ids' ) {
-	if ( 'both' == $direction ) {
-		$to = Posts2Posts::get_connected( $post_id, 'to' );
-		$from = Posts2Posts::get_connected( $post_id, 'from' );
-		$ids = array_merge( $to, array_diff( $from, $to ) );
-	} else {
-		$ids = Posts2Posts::get_connected( $post_id, $direction );
+function p2p_delete_connection( $p2p_id ) {
+	return P2P_Connections::delete( $p2p_id );
+}
+
+// Allows you to write query_posts( array( 'connected' => 123 ) );
+class P2P_Query {
+
+	function init() {
+		add_filter( 'posts_where', array( __CLASS__, 'posts_where' ), 10, 2 );
 	}
 
-	if ( empty( $ids ) )
-		return array();
+	function posts_where( $where, $wp_query ) {
+		global $wpdb;
 
-	if ( 'any' == $post_type && 'ids' == $output )
-		return $ids;
+		$map = array(
+			'connected' => 'both',
+			'connected_to' => 'to',
+			'connected_from' => 'from',
+		);
 
-	$args = array(
-		'post__in' => $ids,
-		'post_type'=> $post_type,
-		'post_status' => 'any',
-		'nopaging' => true,
-	);
+		foreach ( $map as $qv => $direction ) {
+			if ( $id = $wp_query->get( $qv ) ) {
+				$where .= " AND $wpdb->posts.ID IN ( " . implode( ',', p2p_get_connected( $id, $direction ) ) . " )";
+			}
+		}
 
-	$posts = get_posts( $args );
-
-	if ( 'objects' == $output )
-		return $posts;
-
-	foreach ( $posts as &$post )
-		$post = $post->ID;
-
-	return $posts;
-}
-
-/**
- * Display the list of connected posts as an unordered list
- *
- * @param array $args See p2p_get_connected()
- */
-function p2p_list_connected( $post_id, $direction = 'to', $post_type = 'any' ) {
-	$posts = p2p_get_connected( $post_id, $direction, $post_type, 'objects' );
-
-	if ( empty( $posts ) )
-		return;
-
-	echo '<ul>';
-	foreach ( $posts as $post )
-		echo html( 'li', html_link( get_permalink( $post->ID ), get_the_title( $post->ID ) ) );
-	echo '</ul>';
+		return $where;
+	}
 }
 

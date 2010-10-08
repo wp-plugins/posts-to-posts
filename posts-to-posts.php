@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Posts 2 Posts
-Version: 0.4-alpha2
+Version: 0.4
 Plugin Author: scribu
 Description: Create connections between posts of different types
 Author URI: http://scribu.net/
@@ -10,12 +10,12 @@ Text Domain: posts-to-posts
 Domain Path: /lang
 
 
-Copyright ( C ) 2010 scribu.net ( scribu AT gmail DOT com )
+Copyright (C) 2010 Cristi Burcă (scribu@gmail.com)
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 3 of the License, or
-( at your option ) any later version.
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -29,15 +29,48 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 require dirname( __FILE__ ) . '/scb/load.php';
 
 function _p2p_init() {
-	require dirname( __FILE__ ) . '/core.php';
+	require dirname( __FILE__ ) . '/storage.php';
 	require dirname( __FILE__ ) . '/api.php';
+	require dirname( __FILE__ ) . '/ui/ui.php';
+	require dirname( __FILE__ ) . '/ui/boxes.php';
 
-	Posts2Posts::init();
-
-	if ( is_admin() ) {
-		require dirname( __FILE__ ) . '/admin/admin.php';
-		P2P_Admin::init( __FILE__ );
-	}
+	P2P_Connections::init( __FILE__ );
+	P2P_Query::init();
+	P2P_Connection_Types::init();
+	P2P_Box_Multiple::init();
+	
+	P2P_Migrate::init();
 }
 scb_init( '_p2p_init' );
+
+
+class P2P_Migrate {
+
+	function init() {
+		add_action( 'admin_notices', array( __CLASS__, 'migrate' ) );
+	}
+
+	function migrate() {
+		if ( !isset( $_GET['migrate_p2p'] ) || !current_user_can( 'administrator' ) )
+			return;
+
+		$tax = 'p2p';
+
+		register_taxonomy( $tax, 'post', array( 'public' => false ) );
+
+		$count = 0;
+		foreach ( get_terms( $tax ) as $term ) {
+			$post_b = (int) substr( $term->slug, 1 );
+			$post_a = get_objects_in_term( $term->term_id, $tax );
+
+			p2p_connect( $post_a, $post_b );
+
+			wp_delete_term( $term->term_id, $tax );
+
+			$count += count( $post_a );
+		}
+
+		printf( "<div class='updated'><p>Migrated %d connections.</p></div>", $count );
+	}
+}
 
