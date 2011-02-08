@@ -73,9 +73,7 @@ function p2p_get_connected( $post_id, $direction = 'any', $data = array() ) {
 		$from = P2P_Connections::get( $post_id, 'from', $data );
 
 		foreach ( $from as $p2p_id => $post_id ) {
-			if ( !in_array( $post_id, $to ) ) {	// might cause unpredictable results
-				$to[ $p2p_id ] = $post_id;
-			}
+			$to[ $p2p_id ] = $post_id;
 		}
 
 		return $to;
@@ -147,7 +145,6 @@ class P2P_Query {
 
 		$clauses['join'] .= " INNER JOIN $wpdb->p2p";
 
-
 		if ( 'any' == $search )
 			$search = false;
 		else
@@ -161,7 +158,7 @@ class P2P_Query {
 				}
 				break;
 			case 'to':
-				$clauses['where'] .= " AND ($wpdb->posts.ID = $wpdb->p2p.p2p_from)";
+				$clauses['where'] .= " AND $wpdb->posts.ID = $wpdb->p2p.p2p_from";
 				if ( $search ) {
 					$clauses['where'] .= " AND $wpdb->p2p.p2p_to = $search";
 				}
@@ -170,7 +167,8 @@ class P2P_Query {
 				if ( $search ) {
 					$clauses['where'] .= " AND (
 						($wpdb->posts.ID = $wpdb->p2p.p2p_to AND $wpdb->p2p.p2p_from = $search) OR
-						($wpdb->posts.ID = $wpdb->p2p.p2p_from AND $wpdb->p2p.p2p_to = $search))";
+						($wpdb->posts.ID = $wpdb->p2p.p2p_from AND $wpdb->p2p.p2p_to = $search)
+					)";
 				} else {
 					$clauses['where'] .= " AND ($wpdb->posts.ID = $wpdb->p2p.p2p_to OR $wpdb->posts.ID = $wpdb->p2p.p2p_from)";
 				}
