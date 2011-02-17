@@ -31,16 +31,16 @@ require dirname( __FILE__ ) . '/scb/load.php';
 function _p2p_init() {
 	load_plugin_textdomain( 'posts-to-posts', '', dirname( plugin_basename( __FILE__ ) ) . '/lang' );
 
-	require dirname( __FILE__ ) . '/storage.php';
-	require dirname( __FILE__ ) . '/api.php';
-	require dirname( __FILE__ ) . '/ui/ui.php';
-	require dirname( __FILE__ ) . '/ui/boxes.php';
+	require_once dirname( __FILE__ ) . '/storage.php';
+	require_once dirname( __FILE__ ) . '/api.php';
+	require_once dirname( __FILE__ ) . '/ui/ui.php';
+	require_once dirname( __FILE__ ) . '/ui/boxes.php';
 
 	P2P_Connections::init( __FILE__ );
 	P2P_Query::init();
 	P2P_Connection_Types::init();
 	P2P_Box_Multiple::init();
-	
+
 	P2P_Migrate::init();
 }
 scb_init( '_p2p_init' );
