@@ -49,9 +49,11 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 
 == Changelog ==
 
-= 0.5.2 =
+= 0.6 =
+* added 'each_connected' query var
 * fixed p2p_is_connected()
-* make p2p_get_connected() return p2p_ids even with `$direction = 'any'`
+* made p2p_get_connected() return p2p_ids even with `$direction = 'any'`
+* made compatible with [Proper Network Activation](http://wordpress.org/extend/plugins/proper-network-activation)
 
 = 0.5.1 =
 * fixed fatal error on Menus screen
