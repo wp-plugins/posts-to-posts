@@ -44,7 +44,7 @@ abstract class P2P_Box {
 			$title,
 			array( $this, '_box' ),
 			$from,
-			'side',
+			$this->context,
 			'default'
 		);
 	}
@@ -71,6 +71,7 @@ class P2P_Connection_Types {
 		add_action( 'save_post', array( __CLASS__, 'save' ), 10, 2 );
 		add_action( 'wp_ajax_p2p_search', array( __CLASS__, 'ajax_search' ) );
 		add_action( 'wp_ajax_p2p_connections', array( __CLASS__, 'ajax_connections' ) );
+		add_action( 'wp_ajax_p2p_recent', array( __CLASS__, 'ajax_recent' ) );
 	}
 
 	function scripts() {
@@ -127,6 +128,19 @@ class P2P_Connection_Types {
 
 		die();
 	}
+	
+	function ajax_recent() {
+		$box = self::ajax_make_box();
+		
+		$posts = get_posts( $box->get_recent_args( $_GET['post_id'] ) );
+
+		$results = array();
+		foreach ( $posts as $post ) {
+			 $box->results_row( $post );
+		}
+		
+		die();
+	}
 
 	function _search_by_title( $sql ) {
 		remove_filter( current_filter(), array( __CLASS__, __FUNCTION__ ) );
@@ -150,17 +164,18 @@ class P2P_Connection_Types {
 
 	private static function filter_ctypes( $post_type ) {
 		$r = array();
+
 		foreach ( self::$ctypes as $box_id => $args ) {
 			$direction = false;
 
-			if ( $args['reciprocal'] && $args['from'] == $args['to'] ) {
-				$direction = 'any';		
+			if ( $args['reciprocal'] && $post_type == $args['from'] && $args['from'] == $args['to'] ) {
+				$direction = 'any';
 			} elseif ( $args['reciprocal'] && $post_type == $args['to'] ) {
 				$direction = 'to';
 			} elseif ( $post_type == $args['from'] ) {
 				$direction = 'from';
 			} else {
-				continue;			
+				continue;
 			}
 
 			if ( !$direction )
