@@ -81,10 +81,10 @@ class P2P_Connection_Types {
 			$ctype->_register( $from );
 		}
 
-		wp_enqueue_style( 'p2p-admin', plugins_url( 'ui.css', __FILE__ ), array(), '0.7-alpha' );
-		wp_enqueue_script( 'p2p-admin', plugins_url( 'ui.js', __FILE__ ), array( 'jquery' ), '0.7-alpha', true );
+		wp_enqueue_style( 'p2p-admin', plugins_url( 'ui.css', __FILE__ ), array(), '0.7-beta' );
+		wp_enqueue_script( 'p2p-admin', plugins_url( 'ui.js', __FILE__ ), array( 'jquery' ), '0.7-beta', true );
 		wp_localize_script( 'p2p-admin', 'P2PAdmin_I18n', array(
-			'deleteConfirmMessage' => __( 'Are you sure you want to remove all connections?', 'posts-to-posts' )
+			'deleteConfirmMessage' => __( 'Are you sure you want to delete all connections?', 'posts-to-posts' ),
 		) );
 	}
 
@@ -129,15 +129,21 @@ class P2P_Connection_Types {
 
 		$query = new WP_Query( $box->get_search_args( $args, $_GET['post_id'] ) );
 
-		ob_start();
-		foreach ( $query->posts as $post ) {
-			$box->results_row( $post );
+		if ( !$query->have_posts() ) {
+			$results = array(
+				'msg' => get_post_type_object( $box->to )->labels->not_found,
+			);
+		} else {
+			ob_start();
+			foreach ( $query->posts as $post ) {
+				$box->results_row( $post );
+			}
+
+			$results = array(
+				'rows' => ob_get_clean(),
+				'pages' => $query->max_num_pages
+			);
 		}
-		
-		$results = array(
-			'rows' => ob_get_clean(),
-			'pages' => $query->max_num_pages
-		);
 
 		echo json_encode( $results );
 
@@ -146,7 +152,7 @@ class P2P_Connection_Types {
 
 	function _search_by_title( $sql, $wp_query ) {
 		remove_filter( current_filter(), array( __CLASS__, __FUNCTION__ ) );
-
+		
 		if ( $wp_query->is_search ) {
 			list( $sql ) = explode( ' OR ', $sql, 2 );
 			return $sql . '))';
