@@ -108,6 +108,9 @@ $('.p2p-add-new').each(function() {
 
 			if ( $addNew.attr('data-prevent_duplicates') ) {
 				$td.closest('tr').remove();
+
+				if ( !$results.find('tbody tr').length )
+					$results.hide();
 			} else {
 				$td.html( $self );
 			}
@@ -139,7 +142,7 @@ $('.p2p-add-new').each(function() {
 		$spinner.show();
 
 		$.getJSON(ajaxurl, data, function(response) {
-			$spinner.hide();
+			$spinner.remove();
 
 			current_page = new_page;
 
