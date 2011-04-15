@@ -4,7 +4,7 @@ Donate link: http://scribu.net/paypal
 Tags: cms, custom post types, relationships, many-to-many
 Requires at least: 3.0
 Tested up to: 3.1
-Stable tag: trunk
+Stable tag: 0.7
 
 Create connections between posts
 
