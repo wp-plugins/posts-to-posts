@@ -23,7 +23,8 @@ class P2P_Test {
 				'search_items' => 'Search Actors',
 				'not_found' => 'No actors found.'
 			),
-			'has_archive' => 'actors'
+			'has_archive' => 'actors',
+			'taxonomies' => array( 'category' )
 		));
 		register_post_type('movie', array(
 			'public' => true,
@@ -36,22 +37,26 @@ class P2P_Test {
 		) );
 
 		p2p_register_connection_type( array(
-			'from' => 'actor', 
-			'to' => 'actor', 
-			'reciprocal' => true,
-			'title' => array( 'from' => 'Doubles', 'to' => 'Main Actor' )
-		) );
-
-		p2p_register_connection_type( array(
-			'from' => 'actor', 
-			'to' => 'movie', 
-			'reciprocal' => true,
+			'from' => 'actor',
+			'to' => 'movie',
 			'fields' => array(
 				'role' => 'Role',
 				'role_type' => 'Role Type'
 			),
 			'prevent_duplicates' => false,
-			'title' => array( 'from' => 'Played In', 'to' => 'Cast' ),
+			'context' => 'advanced',
+			'reciprocal' => true,
+			'title' => array(
+				'from' => 'Played In',
+				'to' => 'Cast'
+			)
+		) );
+
+		p2p_register_connection_type( array(
+			'from' => 'actor',
+			'to' => 'actor',
+			'reciprocal' => true,
+			'title' => array( 'from' => 'Doubles', 'to' => 'Main Actor' )
 		) );
 
 		p2p_register_connection_type('actor', array('post', 'page'));
@@ -93,7 +98,7 @@ class P2P_Test {
 
 		assert_options(ASSERT_CALLBACK, function ($file, $line, $code) use ( &$failed ) {
 			$failed = true;
-		
+
 			echo "<hr>Assertion Failed (line $line):<br />
 				<code>$code</code><br /><hr />";
 
@@ -201,7 +206,7 @@ class P2P_Test {
 #			'suppress_filters' => false
 #		) );
 
-#		self::walk( $posts );
+		self::walk( $posts );
 
 		// test p2p_each_connected()
 		$query = new WP_Query( array(
@@ -210,15 +215,18 @@ class P2P_Test {
 			'nopaging' => true,
 		) );
 
-		p2p_each_connected( 'any', 'movies', array( 'post_type' => 'movie' ), $query );
+		p2p_each_connected( $query, array( 'post_type' => 'movie' ) );
 
-		self::walk( $query->posts, 'movies' );
+		self::walk( $query->posts );
 
 		if ( $failed )
 			self::debug();
 	}
 
-	private function walk( $posts, $key = '', $level = 0 ) {
+	private function walk( $posts, $level = 0 ) {
+		if ( !isset( $_GET['p2p_debug'] ) )
+			return;
+
 		if ( 0 == $level )
 			echo '<pre>';
 
@@ -229,7 +237,7 @@ class P2P_Test {
 			if ( isset( $post->p2p_id ) )
 				p2p_get_meta( $post->p2p_id, 'foo', true );
 
-			self::walk( (array) @$post->{"connected_$key"}, $key, $level+1 );
+			self::walk( (array) @$post->connected, $level+1 );
 		}
 
 		if ( 0 == $level )

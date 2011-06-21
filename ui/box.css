@@ -1,38 +1,32 @@
-/* General */
-
-.button.inactive, .button.inactive:hover {
-	border-color: #bbb;
-	color: #aaa;
-	background: #f6f6f6;
-	text-shadow: none;
-	cursor: default;
-}
-
-.p2p-footer {
-	background-color: #f1f1f1;
-	border-top: 1px solid #ddd;
-	clear: both;
-	padding: 7px;
-	margin: 6px -6px -8px;
-}
-
-.p2p-footer .p2p-recent {
-	float: right;
-}
-
-
 .p2p-placeholder {
 	color: #AAA;
 }
 
 .p2p-connections,
 .p2p-search,
-.p2p-title-to-post,
+.p2p-create-post,
 .p2p-results {
 	margin-bottom: 8px;
 }
 
+/* Tabs */
+
+.p2p-box .tabs-panel {
+	border-width: 1px;
+	border-style: solid;
+	display: none;
+	padding: 10px;
+}
+
+.p2p-box .p2p-create-connections {
+	display: block;
+}
+
 /* Connections */
+
+.p2p-connections {
+	margin-top: 4px;
+}
 
 .p2p-results,
 .p2p-connections {
@@ -62,14 +56,14 @@
 
 th.p2p-col-delete,
 td.p2p-col-delete,
-td.p2p-col-add {
+td.p2p-col-create {
 	padding: 0;
 }
 
 .p2p-col-delete a,
-.p2p-col-add a,
-.p2p-col-delete img, 
-.p2p-col-add img {
+.p2p-col-create a,
+.p2p-col-delete img,
+.p2p-col-create img {
 	padding: 5px 6px;
 }
 
@@ -94,12 +88,12 @@ th.p2p-col-delete a {
 	width: 100%;
 }
 
-.p2p-col-add,
+.p2p-col-create,
 .p2p-col-delete {
 	width: 16px;
 }
 
-.p2p-col-add a,
+.p2p-col-create a,
 .p2p-col-delete a {
 	display: block;
 	height: 16px;
@@ -109,7 +103,7 @@ th.p2p-col-delete a {
 	width: 16px;
 }
 
-.p2p-col-add a:hover,
+.p2p-col-create a:hover,
 .p2p-col-delete a:hover {
 	background-color: #f5f5f5;
 	border-right: 1px solid #ddd;
@@ -117,7 +111,7 @@ th.p2p-col-delete a {
 	width: 15px;
 }
 
-.p2p-col-add a {
+.p2p-col-create a {
 	background: url("images/add.png") no-repeat scroll 50% 50% transparent;
 }
 
@@ -132,15 +126,14 @@ th.p2p-col-delete a {
 }
 
 .p2p-search input,
-.p2p-title-to-post {
+.p2p-create-post {
 	background-color: transparent;
-	width: 150px;
 	padding-right: 22px;
 	margin: 0;
 }
 
-.p2p-title-to-post {
-	display: none;
+.p2p-create-post input[type="text"] {
+	width: 94%;
 }
 
 .p2p-notice {
@@ -152,7 +145,22 @@ th.p2p-col-delete a {
 	margin-top: 10px;
 }
 
-.p2p-footer .waiting {
+/* Pagination */
+
+.p2p-navigation {
+	clear: both;
+	padding: 7px;
+}
+
+.p2p-navigation .button.inactive, .p2p-navigation .button.inactive:hover {
+	border-color: #bbb;
+	color: #aaa;
+	background: #f6f6f6;
+	text-shadow: none;
+	cursor: default;
+}
+
+.p2p-navigation .waiting {
 	float: right;
 	margin: 3px 6px 0;
 }

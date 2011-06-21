@@ -113,27 +113,32 @@ function p2p_delete_connection( $p2p_id ) {
 	return P2P_Connections::delete( $p2p_id );
 }
 
+function p2p_each_connected_to( $query, $qv ) {
+	return _p2p_each_connected( 'to', $query, $qv );
+}
+
+function p2p_each_connected_from( $query, $qv ) {
+	return _p2p_each_connected( 'from', $query, $qv );
+}
+
+function p2p_each_connected( $query, $qv ) {
+	return _p2p_each_connected( 'any', $query, $qv );
+}
+
 /**
  * Optimized inner query, after the outer query was executed.
  *
  * Populates each of the outer querie's $post objects with a property containing a list of connected posts
  *
  * @param string $direction The direction of the connection. Can be 'to', 'from' or 'any'
- * @param string $prop_name The property name; will be prefixed with 'connected_'
- * @param string|array $args The query vars for the inner query
- * @param object $query (optional) The outer query. Defaults to the global $wp_query
+ * @param object $query The outer query.
+ * @param string|array $args The query vars for the inner query.
  */
-function p2p_each_connected( $direction, $prop_name, $search, $query = null ) {
-	if ( is_null( $query ) )
-		$query = $GLOBALS['wp_query'];
-
+function _p2p_each_connected( $direction, $query, $search ) {
 	if ( empty( $query->posts ) )
 		return;
 
-	if ( empty( $prop_name ) )
-		$prop_name = 'connected';
-	else
-		$prop_name = 'connected_' . $prop_name;
+	$prop_name = 'connected';
 
 	// re-index by ID
 	$posts = array();
@@ -146,12 +151,13 @@ function p2p_each_connected( $direction, $prop_name, $search, $query = null ) {
 	foreach ( array_keys( P2P_Query::$qv_map ) as $qv )
 		unset( $search[ $qv ] );
 
-	if ( 'any' == $direction )
-		$key = 'connected';
-	else
-		$key = 'connected_' . $direction;
+	$map = array(
+		'any' => 'connected',
+		'from' => 'connected_to',
+		'to' => 'connected_from'
+	);
 
-	$search[ $key ] = array_keys( $posts );
+	$search[ $map[ $direction ] ] = array_keys( $posts );
 	$search[ 'suppress_filters' ] = false;
 
 	foreach ( get_posts( $search ) as $inner_post ) {
@@ -256,10 +262,7 @@ class P2P_Query {
 
 		list( $search, $qv, $direction ) = $found;
 
-		$qv = explode('_', $qv);
-		$key = isset( $qv[1] ) ? $qv[1] : '';
-
-		p2p_each_connected( $direction, $key, $search, $wp_query );
+		_p2p_each_connected( $direction, $wp_query, $search );
 
 		return $the_posts;
 	}
@@ -278,3 +281,24 @@ class P2P_Query {
 	}
 }
 
+/**
+ * List some posts
+ *
+ * @param object|array A WP_Query instance, a list of post objects or a list of post ids
+ */
+function p2p_list_posts( $posts ) {
+	if ( is_object( $posts ) )
+		$posts = $posts->posts;
+
+	if ( empty( $posts ) )
+		return;
+
+	if ( is_object( $posts[0] ) )
+		$posts = wp_list_pluck( $posts, 'ID' );
+
+	echo '<ul>';
+	foreach ( $posts as $post_id ) {
+		echo html( 'li', html( 'a', array( 'href' => get_permalink( $post_id ) ), get_the_title( $post_id ) ) );
+	}
+	echo '</ul>';
+}
