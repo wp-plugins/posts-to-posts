@@ -73,15 +73,7 @@ class P2P_Connection_Types {
 		self::$ctypes[] = $args;
 	}
 
-	static function init() {
-		add_action( 'add_meta_boxes', array( __CLASS__, '_register' ) );
-
-		add_action( 'save_post', array( __CLASS__, 'save' ), 10, 2 );
-		add_action( 'wp_ajax_p2p_search', array( __CLASS__, 'ajax_search' ) );
-		add_action( 'wp_ajax_p2p_connections', array( __CLASS__, 'ajax_connections' ) );
-	}
-
-	static function _register( $from ) {
+	static function add_meta_boxes( $from ) {
 		$filtered = self::filter_ctypes( $from );
 
 		if ( empty( $filtered ) )
@@ -92,7 +84,7 @@ class P2P_Connection_Types {
 		}
 	}
 
-	function save( $post_id, $post ) {
+	function save_post( $post_id, $post ) {
 		if ( 'revision' == $post->post_type || !isset( $_POST['p2p_meta'] ) )
 			return;
 
@@ -103,7 +95,7 @@ class P2P_Connection_Types {
 		}
 	}
 
-	function ajax_connections() {
+	function wp_ajax_p2p_connections() {
 		$box = self::ajax_make_box();
 
 		$ptype_obj = get_post_type_object( $box->from );
@@ -121,48 +113,20 @@ class P2P_Connection_Types {
 		$box->disconnect();
 	}
 
-	function ajax_search() {
-		add_filter( 'posts_search', array( __CLASS__, '_search_by_title' ), 10, 2 );
-
+	function wp_ajax_p2p_search() {
 		$box = self::ajax_make_box();
 
-		$args = array(
-			's' => $_GET['s'],
-			'paged' => $_GET['paged']
-		);
+		$rows = $box->handle_search( $_GET['post_id'], $_GET['paged'], $_GET['s'] );
 
-		$query = new WP_Query( $box->get_search_args( $args, $_GET['post_id'] ) );
-
-		if ( !$query->have_posts() ) {
+		if ( $rows ) {
+			$results = compact( 'rows' );
+		} else {
 			$results = array(
 				'msg' => get_post_type_object( $box->to )->labels->not_found,
 			);
-		} else {
-			ob_start();
-			foreach ( $query->posts as $post ) {
-				$box->results_row( $post );
-			}
-
-			$results = array(
-				'rows' => ob_get_clean(),
-				'pages' => $query->max_num_pages
-			);
 		}
 
-		echo json_encode( $results );
-
-		die;
-	}
-
-	function _search_by_title( $sql, $wp_query ) {
-		remove_filter( current_filter(), array( __CLASS__, __FUNCTION__ ) );
-
-		if ( $wp_query->is_search ) {
-			list( $sql ) = explode( ' OR ', $sql, 2 );
-			return $sql . '))';
-		}
-
-		return $sql;
+		die( json_encode( $results ) );
 	}
 
 	private static function ajax_make_box() {
@@ -202,4 +166,5 @@ class P2P_Connection_Types {
 		return $r;
 	}
 }
+scbHooks::add( 'P2P_Connection_Types' );
 

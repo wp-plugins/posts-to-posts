@@ -151,6 +151,14 @@ function _p2p_each_connected( $direction, $query, $search ) {
 	foreach ( array_keys( P2P_Query::$qv_map ) as $qv )
 		unset( $search[ $qv ] );
 
+	// ignore pagination
+	$search['nopaging'] = true;
+	foreach ( array( 'showposts', 'posts_per_page', 'posts_per_archive_page' ) as $disabled_qv ) {
+		if ( isset( $search[ $disabled_qv ] ) ) {
+			trigger_error( "Can't use '$disabled_qv' in an inner query", E_USER_WARNING );
+		}
+	}
+
 	$map = array(
 		'any' => 'connected',
 		'from' => 'connected_to',
@@ -175,7 +183,7 @@ function _p2p_each_connected( $direction, $query, $search ) {
 	}
 }
 
-// Allows you to write query_posts( array( 'connected' => 123 ) );
+// Allows you to write query_posts( array( 'connected' => 123 ) ); etc.
 class P2P_Query {
 
 	static $qv_map = array(
@@ -184,13 +192,10 @@ class P2P_Query {
 		'connected_from' => 'from',
 	);
 
-	function init() {
-		add_filter( 'posts_clauses', array( __CLASS__, 'query' ), 10, 2 );
-		add_filter( 'the_posts', array( __CLASS__, 'the_posts' ), 11, 2 );
-	}
-
-	// Handles connected* query vars
-	function query( $clauses, $wp_query ) {
+	/**
+	 * Handles connected* query vars
+	 */
+	function posts_clauses( $clauses, $wp_query ) {
 		global $wpdb;
 
 		$found = self::find_qv( $wp_query );
@@ -243,10 +248,31 @@ class P2P_Query {
 			}
 		}
 
+		// Handle ordering
+		$p2p_orderby = $wp_query->get( 'p2p_orderby' );
+		if ( $p2p_orderby ) {
+			$clauses['join'] .= $wpdb->prepare( "
+				LEFT JOIN $wpdb->p2pmeta ON ($wpdb->p2p.p2p_id = $wpdb->p2pmeta.p2p_id AND $wpdb->p2pmeta.meta_key = %s )
+			", $p2p_orderby );
+
+			$p2p_order = ( 'DESC' == strtoupper( $wp_query->get('p2p_order') ) ) ? 'DESC' : 'ASC';
+
+			$field = 'meta_value';
+
+			if ( $wp_query->get('p2p_order_num') )
+				$field .= '+0';
+
+			$clauses['orderby'] = "$wpdb->p2pmeta.$field $p2p_order";
+		}
+
 		return $clauses;
 	}
 
-	// Handles each_connected* query vars
+	/**
+	 * Handles each_connected* query vars
+	 *
+	 * @priority 11
+	 */
 	function the_posts( $the_posts, $wp_query ) {
 		if ( empty( $the_posts ) )
 			return $the_posts;
@@ -280,6 +306,7 @@ class P2P_Query {
 		return array( $search, $qv, $direction );
 	}
 }
+scbHooks::add( 'P2P_Query' );
 
 /**
  * List some posts

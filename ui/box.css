@@ -2,10 +2,7 @@
 	color: #AAA;
 }
 
-.p2p-connections,
-.p2p-search,
-.p2p-create-post,
-.p2p-results {
+.p2p-connections {
 	margin-bottom: 8px;
 }
 
@@ -18,7 +15,7 @@
 	padding: 10px;
 }
 
-.p2p-box .p2p-create-connections {
+.p2p-box .p2p-tab-search {
 	display: block;
 }
 
@@ -38,8 +35,10 @@
 	border-width: 1px;
 }
 
-.p2p-results {
-	display: none;
+.p2p-search + .p2p-results,
+.p2p-results + .p2p-navigation,
+.p2p-tab-create-post .button {
+	margin-top: 8px;
 }
 
 .p2p-results td,
@@ -119,37 +118,33 @@ th.p2p-col-delete a {
 	background: url("images/delete.png") no-repeat scroll 50% 50% transparent;
 }
 
-.p2p-search .waiting {
+.p2p-tab-search .waiting {
 	margin-left: -20px;
 	opacity: 0.8;
 	vertical-align: -0.3em;
 }
 
-.p2p-search input,
-.p2p-create-post {
+.p2p-tab-search input,
+.p2p-tab-create-post {
 	background-color: transparent;
 	padding-right: 22px;
 	margin: 0;
 }
 
-.p2p-create-post input[type="text"] {
+.p2p-tab-create-post input[type="text"] {
 	width: 94%;
-}
-
-.p2p-notice {
-	margin-left: 5px;
 }
 
 #side-sortables .p2p-notice {
 	display: block;
-	margin-top: 10px;
+	margin-top: 8px;
 }
 
 /* Pagination */
 
 .p2p-navigation {
 	clear: both;
-	padding: 7px;
+	overflow: hidden;
 }
 
 .p2p-navigation .button.inactive, .p2p-navigation .button.inactive:hover {
@@ -165,11 +160,7 @@ th.p2p-col-delete a {
 	margin: 3px 6px 0;
 }
 
-.p2p-nav {
-	display: none;
-}
-
-.p2p-nav > * {
+.p2p-navigation > * {
 	float: left;
 	line-height: 13px;
 	padding-top: 3px;

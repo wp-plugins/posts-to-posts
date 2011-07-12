@@ -1,14 +1,10 @@
 <?php
 
-/*
-Creates an admin page
-
-You must set $this->args and define the page_content() method
-*/
+// Administration page base class
 
 abstract class scbAdminPage {
 	/** Page args
-	 * $toplevel string  If not empty, will create a new top level menu
+	 * $toplevel string  If not empty, will create a new top level menu (for expected values see http://codex.wordpress.org/Administration_Menus#Using_add_submenu_page)
 	 * $icon string  Path to an icon for the top level menu
 	 * $parent string  ( default: options-general.php )
 	 * $capability string  ( default: 'manage_options' )
@@ -148,7 +144,7 @@ abstract class scbAdminPage {
 			return false;
 		}
 
-		$new_data = scbUtil::array_extract( $_POST, array_keys( $this->options->get_defaults() ) );
+		$new_data = wp_array_slice_assoc( $_POST, array_keys( $this->options->get_defaults() ) );
 
 		$new_data = stripslashes_deep( $new_data );
 

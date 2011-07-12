@@ -1,6 +1,7 @@
 <?php
 
 class P2P_Box_Multiple extends P2P_Box {
+	const POSTS_PER_PAGE = 5;
 
 	function setup() {
 		if ( !class_exists( 'Mustache' ) )
@@ -22,7 +23,7 @@ class P2P_Box_Multiple extends P2P_Box {
 	function create_post() {
 		$new_post_id = wp_insert_post( array(
 			'post_title' => $_POST['post_title'],
-			'post_author' => 1,
+			'post_author' => get_current_user_id(),
 			'post_type' => $this->to
 		) );
 
@@ -53,7 +54,7 @@ class P2P_Box_Multiple extends P2P_Box {
 		if ( !$p2p_id )
 			$p2p_id = P2P_Connections::connect( $args[0], $args[1] );
 
-		$this->connection_row( $p2p_id, $to );
+		echo $this->connection_row( $p2p_id, $to );
 	}
 
 	function disconnect() {
@@ -78,14 +79,9 @@ class P2P_Box_Multiple extends P2P_Box {
 		$to_cpt = get_post_type_object( $this->to );
 
 		$data = array(
-			'search-key' => 'p2p_search_' . $this->to,
-			'create' => __( 'Create connections:', 'posts-to-posts' ),
+			'create-label' => __( 'Create connections:', 'posts-to-posts' ),
 			'placeholder' => $to_cpt->labels->search_items,
-
-			'prev' =>  __( 'Previous', 'p2p-textdomain' ),
-			'next' =>  __( 'Next', 'p2p-textdomain' ),
-			'of' => __( 'of', 'p2p-textdomain' ),
-			'recent' => __( 'Recent', 'p2p-textdomain' ),
+			'recent-posts' => $this->handle_search( $post_id )
 		);
 
 		if ( empty( $connected_ids ) )
@@ -93,7 +89,7 @@ class P2P_Box_Multiple extends P2P_Box {
 
 		foreach ( $this->columns as $key => $title ) {
 			$data['thead'][] = array(
-				'class' => "p2p-col-$key",
+				'column' => $key,
 				'title' => $title
 			);
 		}
@@ -103,31 +99,30 @@ class P2P_Box_Multiple extends P2P_Box {
 			$data_attr[] = "data-$key='" . $this->$key . "'";
 		$data['attributes'] = implode( ' ', $data_attr );
 
-		ob_start();
+		$tbody = '';
 		foreach ( $connected_ids as $p2p_id => $post_b ) {
-			$this->connection_row( $p2p_id, $post_b );
+			$tbody .= $this->connection_row( $p2p_id, $post_b );
 		}
-		$data['tbody'] = ob_get_clean();
+		$data['tbody'] = $tbody;
 
 		$data['tabs'][] = array(
-			'ref' => '.p2p-create-connections',
+			'ref' => '.p2p-tab-search',
 			'text' => __( 'Search', 'p2p-textdomain' ),
 			'is-active' => array(true)
 		);
 
 		$data['tabs'][] = array(
-			'ref' => '.p2p-recent',
+			'ref' => '.p2p-tab-recent',
 			'text' => __( 'Recent', 'p2p-textdomain' ),
 		);
 
 		if ( current_user_can( $to_cpt->cap->edit_posts ) ) {
 			$data['tabs'][] = array(
-				'ref' => '.p2p-create-post',
+				'ref' => '.p2p-tab-create-post',
 				'text' => $to_cpt->labels->new_item
 			);
 
 			$data['create-post'] = array(
-				'key' => 'p2p_new_title_' . $this->to,
 				'title' => $to_cpt->labels->add_new_item
 			);
 		}
@@ -157,29 +152,99 @@ class P2P_Box_Multiple extends P2P_Box {
 			}
 
 			$data['columns'][] = array(
-				'class' => "p2p-col-$key",
+				'column' => $key,
 				'content' => $value
 			);
 		}
 
-		echo self::mustache_render( 'box-row.html', $data );
+		return self::mustache_render( 'box-row.html', $data );
 	}
 
-	private static function mustache_render( $file, $data ) {
-		$template = file_get_contents( dirname(__FILE__) . '/templates/' . $file );
-		$m = new Mustache;
-		return $m->render( $template, $data );
-	}
-
-	public function results_row( $post ) {
-		echo '<tr>';
-
-		foreach ( array( 'create', 'title' ) as $key ) {
-			$method = "column_$key";
-			echo html( 'td', array( 'class' => "p2p-col-$key" ), $this->$method( $post->ID ) );
+	private static function mustache_render( $file, $data, $partials = array() ) {
+		$partial_data = array();
+		foreach ( $partials as $partial ) {
+			$partial_data[$partial] = self::load_template( $partial . '.html' );
 		}
 
-		echo '</tr>';
+		$m = new Mustache;
+
+		return $m->render( self::load_template( $file ), $data, $partial_data );
+	}
+
+	private function load_template( $file ) {
+		return file_get_contents( dirname(__FILE__) . '/templates/' . $file );
+	}
+
+	public function handle_search( $post_id, $page = 1, $search = '' ) {
+		$args = array(
+			'paged' => $page,
+			'post_type' => $this->to,
+			'post_status' => 'any',
+			'posts_per_page' => self::POSTS_PER_PAGE,
+			'suppress_filters' => false,
+			'update_post_term_cache' => false,
+			'update_post_meta_cache' => false
+		);
+
+		if ( $search ) {
+			add_filter( 'posts_search', array( __CLASS__, '_search_by_title' ), 10, 2 );
+			$args['s'] = $search;
+		}
+
+		if ( $this->prevent_duplicates )
+			$args['post__not_in'] = p2p_get_connected( $post_id, $this->direction );
+
+		$query = new WP_Query( $args );
+
+		if ( !$query->have_posts() )
+			return false;
+
+		return $this->post_rows( $query );
+	}
+
+	function _search_by_title( $sql, $wp_query ) {
+		if ( $wp_query->is_search ) {
+			list( $sql ) = explode( ' OR ', $sql, 2 );
+			return $sql . '))';
+		}
+
+		return $sql;
+	}
+
+	protected function post_rows( $query ) {
+		$data = array();
+
+		foreach ( $query->posts as $post ) {
+			$row = array();
+
+			foreach ( array( 'create', 'title' ) as $key ) {
+				$row['columns'][] = array(
+					'column' => $key,
+					'content' => call_user_func( array( $this, "column_$key" ), $post->ID )
+				);
+			}
+
+			$data['rows'][] = $row;
+		}
+
+		$current_page = max( 1, $query->get('paged') );
+		$total_pages = $query->max_num_pages;
+
+		if ( $total_pages > 1 ) {
+			$data['navigation'] = array(
+				'current-page' => $current_page,
+				'total-pages' => $total_pages,
+
+				'prev-inactive' => ( 1 == $current_page ) ? 'inactive' : '',
+				'next-inactive' => ( $total_pages == $current_page ) ? 'inactive' : '',
+
+				'prev-label' =>  __( 'Previous', 'p2p-textdomain' ),
+				'next-label' =>  __( 'Next', 'p2p-textdomain' ),
+				'of-label' => __( 'of', 'p2p-textdomain' ),
+			);
+		}
+
+		return self::mustache_render( 'post-rows.html', $data, array( 'box-row' ) );
 	}
 
 	protected function column_title( $post_id ) {
@@ -238,44 +303,14 @@ class P2P_Box_Multiple extends P2P_Box {
 			'post_type'=> $this->to,
 			'post_status' => 'any',
 			'nopaging' => true,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
 			'suppress_filters' => false,
 		);
 
-		$post_ids = scbUtil::array_pluck( get_posts($args), 'ID' );
+		$post_ids = wp_list_pluck( get_posts($args), 'ID' );
 
 		return array_intersect( $connected_posts, $post_ids );	// to preserve p2p_id keys
-	}
-
-	function get_search_args( $args, $post_id ) {
-		$args = array_merge( $args, array(
-			'post_type' => $this->to,
-			'post_status' => 'any',
-			'posts_per_page' => 5,
-			'suppress_filters' => false,
-			'update_post_term_cache' => false,
-			'update_post_meta_cache' => false
-		) );
-
-		if ( $this->prevent_duplicates )
-			$args['post__not_in'] = p2p_get_connected( $post_id, $this->direction );
-
-		return $args;
-	}
-
-	function get_recent_args( $post_id ) {
-		$args = array(
-			'numberposts' => 10,
-			'orderby' => 'post_date',
-			'order' => 'DESC',
-			'post_type' => $this->to,
-			'post_status' => 'publish',
-			'suppress_filters' => false //true
-		);
-
-		if ( $this->prevent_duplicates )
-			$args['post__not_in'] = p2p_get_connected( $post_id, $this->direction );
-
-		return $args;
 	}
 }
 
