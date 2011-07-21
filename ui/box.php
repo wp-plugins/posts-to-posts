@@ -10,6 +10,7 @@ class P2P_Box_Multiple extends P2P_Box {
 		wp_enqueue_style( 'p2p-admin', plugins_url( 'box.css', __FILE__ ), array(), P2P_PLUGIN_VERSION );
 		wp_enqueue_script( 'p2p-admin', plugins_url( 'box.js', __FILE__ ), array( 'jquery' ), P2P_PLUGIN_VERSION, true );
 		wp_localize_script( 'p2p-admin', 'P2PAdmin_I18n', array(
+			'nonce' => wp_create_nonce( P2P_BOX_NONCE ),
 			'deleteConfirmMessage' => __( 'Are you sure you want to delete all connections?', 'posts-to-posts' ),
 		) );
 
@@ -20,68 +21,16 @@ class P2P_Box_Multiple extends P2P_Box {
 		);
 	}
 
-	function create_post() {
-		$new_post_id = wp_insert_post( array(
-			'post_title' => $_POST['post_title'],
-			'post_author' => get_current_user_id(),
-			'post_type' => $this->to
-		) );
 
-		$this->safe_connect( absint( $_POST['from'] ), $new_post_id );
-	}
+	// Initial rendering
 
-	function connect() {
-		$this->safe_connect( absint( $_POST['from'] ), absint( $_POST['to'] ) );
-	}
-
-	protected function safe_connect( $from, $to ) {
-		if ( !$from || !$to )
-			die(-1);
-
-		$args = array( $from, $to );
-
-		if ( $this->reversed )
-			$args = array_reverse( $args );
-
-		$p2p_id = false;
-		if ( $this->prevent_duplicates ) {
-			$p2p_ids = P2P_Connections::get( $args[0], $args[1] );
-
-			if ( !empty( $p2p_ids ) )
-				$p2p_id = $p2p_ids[0];
-		}
-
-		if ( !$p2p_id )
-			$p2p_id = P2P_Connections::connect( $args[0], $args[1] );
-
-		echo $this->connection_row( $p2p_id, $to );
-	}
-
-	function disconnect() {
-		$p2p_id = absint( $_POST['p2p_id'] );
-
-		p2p_delete_connection( $p2p_id );
-
-		die(1);
-	}
-
-	function clear_connections() {
-		$post_id = absint( $_POST['post_id'] );
-
-		p2p_disconnect( $post_id, $this->direction );
-
-		die(1);
-	}
-
-	function box( $post_id ) {
+	function render_box( $post_id ) {
 		$connected_ids = $this->get_connected_ids( $post_id );
 
 		$to_cpt = get_post_type_object( $this->to );
 
 		$data = array(
 			'create-label' => __( 'Create connections:', 'posts-to-posts' ),
-			'placeholder' => $to_cpt->labels->search_items,
-			'recent-posts' => $this->handle_search( $post_id )
 		);
 
 		if ( empty( $connected_ids ) )
@@ -105,29 +54,38 @@ class P2P_Box_Multiple extends P2P_Box {
 		}
 		$data['tbody'] = $tbody;
 
-		$data['tabs'][] = array(
-			'ref' => '.p2p-tab-search',
-			'text' => __( 'Search', 'p2p-textdomain' ),
-			'is-active' => array(true)
-		);
+		// Search tab
+		$tab_content = self::mustache_render( 'tab-search.html', array(
+			'placeholder' => $to_cpt->labels->search_items,
+		) );
 
 		$data['tabs'][] = array(
-			'ref' => '.p2p-tab-recent',
-			'text' => __( 'Recent', 'p2p-textdomain' ),
+			'tab-id' => 'search',
+			'tab-title' => __( 'Search', 'p2p-textdomain' ),
+			'is-active' => array(true),
+			'tab-content' => $tab_content
 		);
 
+		// Recent tab
+		$data['tabs'][] = array(
+			'tab-id' => 'recent',
+			'tab-title' => __( 'Recent', 'p2p-textdomain' ),
+			'tab-content' => $this->handle_search( $post_id )
+		);
+
+		// Create post tab
 		if ( current_user_can( $to_cpt->cap->edit_posts ) ) {
-			$data['tabs'][] = array(
-				'ref' => '.p2p-tab-create-post',
-				'text' => $to_cpt->labels->new_item
-			);
-
-			$data['create-post'] = array(
+			$tab_content = self::mustache_render( 'tab-create-post.html', array(
 				'title' => $to_cpt->labels->add_new_item
+			) );
+
+			$data['tabs'][] = array(
+				'tab-id' => 'create-post',
+				'tab-title' => $to_cpt->labels->new_item,
+				'tab-content' => $tab_content
 			);
 		}
 
-		// Render the box
 		echo self::mustache_render( 'box.html', $data );
 	}
 
@@ -158,57 +116,6 @@ class P2P_Box_Multiple extends P2P_Box {
 		}
 
 		return self::mustache_render( 'box-row.html', $data );
-	}
-
-	private static function mustache_render( $file, $data, $partials = array() ) {
-		$partial_data = array();
-		foreach ( $partials as $partial ) {
-			$partial_data[$partial] = self::load_template( $partial . '.html' );
-		}
-
-		$m = new Mustache;
-
-		return $m->render( self::load_template( $file ), $data, $partial_data );
-	}
-
-	private function load_template( $file ) {
-		return file_get_contents( dirname(__FILE__) . '/templates/' . $file );
-	}
-
-	public function handle_search( $post_id, $page = 1, $search = '' ) {
-		$args = array(
-			'paged' => $page,
-			'post_type' => $this->to,
-			'post_status' => 'any',
-			'posts_per_page' => self::POSTS_PER_PAGE,
-			'suppress_filters' => false,
-			'update_post_term_cache' => false,
-			'update_post_meta_cache' => false
-		);
-
-		if ( $search ) {
-			add_filter( 'posts_search', array( __CLASS__, '_search_by_title' ), 10, 2 );
-			$args['s'] = $search;
-		}
-
-		if ( $this->prevent_duplicates )
-			$args['post__not_in'] = p2p_get_connected( $post_id, $this->direction );
-
-		$query = new WP_Query( $args );
-
-		if ( !$query->have_posts() )
-			return false;
-
-		return $this->post_rows( $query );
-	}
-
-	function _search_by_title( $sql, $wp_query ) {
-		if ( $wp_query->is_search ) {
-			list( $sql ) = explode( ' OR ', $sql, 2 );
-			return $sql . '))';
-		}
-
-		return $sql;
 	}
 
 	protected function post_rows( $query ) {
@@ -244,8 +151,11 @@ class P2P_Box_Multiple extends P2P_Box {
 			);
 		}
 
-		return self::mustache_render( 'post-rows.html', $data, array( 'box-row' ) );
+		return self::mustache_render( 'tab-recent.html', $data, array( 'box-row' ) );
 	}
+
+
+	// Column rendering
 
 	protected function column_title( $post_id ) {
 		$data = array(
@@ -292,6 +202,119 @@ class P2P_Box_Multiple extends P2P_Box {
 		return self::mustache_render( 'column-delete-all.html', $data );
 	}
 
+
+	// Ajax handlers
+
+	public function ajax_create_post() {
+		$new_post_id = wp_insert_post( array(
+			'post_title' => $_POST['post_title'],
+			'post_author' => get_current_user_id(),
+			'post_type' => $this->to
+		) );
+
+		$this->safe_connect( absint( $_POST['from'] ), $new_post_id );
+	}
+
+	public function ajax_connect() {
+		$this->safe_connect( absint( $_POST['from'] ), absint( $_POST['to'] ) );
+	}
+
+	protected function safe_connect( $from, $to ) {
+		if ( !$from || !$to )
+			die(-1);
+
+		$args = array( $from, $to );
+
+		if ( $this->reversed )
+			$args = array_reverse( $args );
+
+		$p2p_id = false;
+		if ( $this->prevent_duplicates ) {
+			$p2p_ids = P2P_Connections::get( $args[0], $args[1] );
+
+			if ( !empty( $p2p_ids ) )
+				$p2p_id = $p2p_ids[0];
+		}
+
+		if ( !$p2p_id )
+			$p2p_id = P2P_Connections::connect( $args[0], $args[1] );
+
+		die( $this->connection_row( $p2p_id, $to ) );
+	}
+
+	public function ajax_disconnect() {
+		$p2p_id = absint( $_POST['p2p_id'] );
+
+		p2p_delete_connection( $p2p_id );
+
+		die(1);
+	}
+
+	public function ajax_clear_connections() {
+		$post_id = absint( $_POST['post_id'] );
+
+		p2p_disconnect( $post_id, $this->direction );
+
+		die(1);
+	}
+
+	public function ajax_search() {
+		$rows = $this->handle_search( $_GET['post_id'], $_GET['paged'], $_GET['s'] );
+
+		if ( $rows ) {
+			$results = compact( 'rows' );
+		} else {
+			$results = array(
+				'msg' => get_post_type_object( $this->to )->labels->not_found,
+			);
+		}
+
+		die( json_encode( $results ) );
+	}
+
+	protected function handle_search( $post_id, $page = 1, $search = '' ) {
+		$query = new WP_Query( $this->get_query_vars( $post_id, $page, $search ) );
+
+		if ( !$query->have_posts() )
+			return false;
+
+		return $this->post_rows( $query );
+	}
+
+	protected function get_query_vars( $post_id, $page, $search ) {
+		$args = array(
+			'paged' => $page,
+			'post_type' => $this->to,
+			'post_status' => 'any',
+			'posts_per_page' => self::POSTS_PER_PAGE,
+			'suppress_filters' => false,
+			'update_post_term_cache' => false,
+			'update_post_meta_cache' => false
+		);
+
+		if ( $search ) {
+			add_filter( 'posts_search', array( __CLASS__, '_search_by_title' ), 10, 2 );
+			$args['s'] = $search;
+		}
+
+		if ( $this->prevent_duplicates )
+			$args['post__not_in'] = p2p_get_connected( $post_id, $this->direction );
+
+		return $args;
+	}
+
+	function _search_by_title( $sql, $wp_query ) {
+		if ( $wp_query->is_search ) {
+			list( $sql ) = explode( ' OR ', $sql, 2 );
+			return $sql . '))';
+		}
+
+		return $sql;
+	}
+
+
+	// Helpers
+
 	protected function get_connected_ids( $post_id ) {
 		$connected_posts = p2p_get_connected( $post_id, $this->direction );
 
@@ -311,6 +334,22 @@ class P2P_Box_Multiple extends P2P_Box {
 		$post_ids = wp_list_pluck( get_posts($args), 'ID' );
 
 		return array_intersect( $connected_posts, $post_ids );	// to preserve p2p_id keys
+	}
+
+
+	private static function mustache_render( $file, $data, $partials = array() ) {
+		$partial_data = array();
+		foreach ( $partials as $partial ) {
+			$partial_data[$partial] = self::load_template( $partial . '.html' );
+		}
+
+		$m = new Mustache;
+
+		return $m->render( self::load_template( $file ), $data, $partial_data );
+	}
+
+	private function load_template( $file ) {
+		return file_get_contents( dirname(__FILE__) . '/templates/' . $file );
 	}
 }
 

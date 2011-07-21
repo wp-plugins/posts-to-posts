@@ -35,8 +35,10 @@ $('.p2p-box').each(function() {
 
 	function get_base_data() {
 		return {
+			action: 'p2p_box',
+			nonce: P2PAdmin_I18n.nonce,
 			box_id: $metabox.attr('data-box_id'),
-			direction: $metabox.attr('data-direction')
+			post_type: $('#post_type').val()
 		};
 	}
 
@@ -49,7 +51,6 @@ $('.p2p-box').each(function() {
 			$self = $(this),
 			$td = $self.closest('td'),
 			data = $.extend( get_base_data(), {
-				action: 'p2p_connections',
 				subaction: 'clear_connections',
 				post_id: $('#post_ID').val()
 			} );
@@ -72,7 +73,6 @@ $('.p2p-box').each(function() {
 			$self = $(this),
 			$td = $self.closest('td'),
 			data = $.extend( get_base_data(), {
-				action: 'p2p_connections',
 				subaction: 'disconnect',
 				p2p_id: $self.attr('data-p2p_id')
 			} );
@@ -95,7 +95,6 @@ $('.p2p-box').each(function() {
 			$self = $(this),
 			$td = $self.closest('td'),
 			data = $.extend( get_base_data(), {
-				action: 'p2p_connections',
 				subaction: 'connect',
 				from: $('#post_ID').val(),
 				to: $self.attr('data-post_id')
@@ -108,10 +107,12 @@ $('.p2p-box').each(function() {
 				.find('tbody').append(response);
 
 			if ( $metabox.attr('data-prevent_duplicates') ) {
-				$td.closest('tr').remove();
+				var $table = $td.closest('table');
 
-				if ( !$results.find('tbody tr').length )
-					$results.hide();
+				if ( 1 == $table.find('tbody tr').length )
+					$table.remove();
+				else
+					$td.closest('tr').remove();
 			} else {
 				$td.html( $self );
 			}
@@ -145,7 +146,7 @@ $('.p2p-box').each(function() {
 		this.tab.delegate('.p2p-prev, .p2p-next', 'click', $.proxy(this, 'change_page'));
 
 		this.data = $.extend( get_base_data(), {
-			action: 'p2p_search',
+			subaction: 'search',
 			post_id: $('#post_ID').val(),
 			s: ''
 		} );
@@ -179,6 +180,7 @@ $('.p2p-box').each(function() {
 		find_posts: function (new_page) {
 			this.data.paged = new_page ? ( new_page > this.total_pages ? this.current_page : new_page ) : this.current_page;
 
+			$spinner.appendTo( this.tab.find('.p2p-navigation') );
 			$.getJSON(ajaxurl, this.data, $.proxy(this, 'update_rows'));
 		},
 
@@ -249,7 +251,6 @@ $('.p2p-box').each(function() {
 		$button.addClass('inactive');
 
 		var data = $.extend( get_base_data(), {
-			action: 'p2p_connections',
 			subaction: 'create_post',
 			from: $('#post_ID').val(),
 			post_title: title
