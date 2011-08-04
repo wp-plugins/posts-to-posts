@@ -58,7 +58,16 @@ class P2P_Test {
 			'from' => 'actor',
 			'to' => 'actor',
 			'reciprocal' => true,
-			'title' => array( 'from' => 'Doubles', 'to' => 'Main Actor' )
+			'title' => array( 'from' => 'Doubles', 'to' => 'Main Actor' ),
+			'data' => array( 'type' => 'doubles' )
+		) );
+
+		p2p_register_connection_type( array(
+			'from' => 'actor',
+			'to' => 'actor',
+			'reciprocal' => true,
+			'title' => 'Friends with',
+			'data' => array( 'type' => 'friends' )
 		) );
 
 		p2p_register_connection_type('actor', array('post', 'page'));
@@ -179,6 +188,8 @@ class P2P_Test {
 			'post_type' => 'movie',
 			'post_status' => 'any',
 			'nopaging' => true,
+
+			'connected_meta' => array( 'foo' => 'bar' ),
 
 			'connected_orderby' => 'role',
 			'connected_order_num' => true,
