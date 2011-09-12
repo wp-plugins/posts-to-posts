@@ -2,7 +2,7 @@
 /*
 Plugin Name: Posts 2 Posts
 Description: Create many-to-many relationships between all types of posts.
-Version: 0.8.1-alpha2
+Version: 0.9-alpha
 Author: scribu
 Author URI: http://scribu.net/
 Plugin URI: http://scribu.net/wordpress/posts-to-posts
@@ -36,10 +36,12 @@ function _p2p_init() {
 	load_plugin_textdomain( P2P_TEXTDOMAIN, '', basename( dirname( __FILE__ ) ) . '/lang' );
 
 	require_once dirname( __FILE__ ) . '/storage.php';
+	require_once dirname( __FILE__ ) . '/query.php';
 	require_once dirname( __FILE__ ) . '/api.php';
 
-	require_once dirname( __FILE__ ) . '/ui.php';
-	require_once dirname( __FILE__ ) . '/ui/box.php';
+	require_once dirname( __FILE__ ) . '/admin/base.php';
+	require_once dirname( __FILE__ ) . '/admin/data.php';
+	require_once dirname( __FILE__ ) . '/admin/box.php';
 
 	P2P_Connections::init( __FILE__ );
 
@@ -76,5 +78,14 @@ class P2P_Migrate {
 
 		printf( "<div class='updated'><p>Migrated %d connections.</p></div>", $count );
 	}
+}
+
+
+function _p2p_pluck( &$args, $key ) {
+	$value = $args[ $key ];
+
+	unset( $args[ $key ] );
+
+	return $value;
 }
 

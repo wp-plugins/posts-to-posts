@@ -227,13 +227,8 @@ abstract class scbAdminPage {
 		return scbForms::form_wrap( $content, $this->nonce );
 	}
 
-	// See scbForms::form()
-	function form( $rows, $formdata = array() ) {
-		return scbForms::form( $rows, $formdata, $this->nonce );
-	}
-
 	// Generates a table wrapped in a form
-	function form_table( $rows, $formdata = array() ) {
+	function form_table( $rows, $formdata = false ) {
 		$output = '';
 		foreach ( $rows as $row )
 			$output .= $this->table_row( $row, $formdata );
@@ -252,7 +247,7 @@ abstract class scbAdminPage {
 	}
 
 	// Generates a form table
-	function table( $rows, $formdata = array() ) {
+	function table( $rows, $formdata = false ) {
 		$output = '';
 		foreach ( $rows as $row )
 			$output .= $this->table_row( $row, $formdata );
@@ -263,7 +258,7 @@ abstract class scbAdminPage {
 	}
 
 	// Generates a table row
-	function table_row( $args, $formdata = array() ) {
+	function table_row( $args, $formdata = false ) {
 		return $this->row_wrap( $args['title'], $this->input( $args, $formdata ) );
 	}
 
@@ -281,34 +276,16 @@ abstract class scbAdminPage {
 			.html( 'td', $content ) );
 	}
 
-	function input( $args, $formdata = array() ) {
-		if ( empty( $formdata ) && isset( $this->options ) )
-			$formdata = $this->options->get();
-
-		if ( isset( $args['name_tree'] ) ) {
-			$tree = ( array ) $args['name_tree'];
-			unset( $args['name_tree'] );
-
-			$value = $formdata;
-			$name = $this->option_name;
-			foreach ( $tree as $key ) {
-				$value = $value[$key];
-				$name .= '[' . $key . ']';
-			}
-
-			$args['name'] = $name;
-			unset( $args['names'] );
-
-			unset( $args['values'] );
-
-			$formdata = array( $name => $value );
-		}
-
-		return scbForms::input( $args, $formdata );
-	}
-
 	// Mimic scbForms inheritance
 	function __call( $method, $args ) {
+		if ( in_array( $method, array( 'input', 'form' ) ) ) {
+			if ( empty( $args[1] ) && isset( $this->options ) )
+				$args[1] = $this->options->get();
+
+			if ( 'form' == $method )
+				$args[2] = $this->nonce;
+		}
+
 		return call_user_func_array( array( 'scbForms', $method ), $args );
 	}
 
