@@ -4,16 +4,18 @@
 
 abstract class scbAdminPage {
 	/** Page args
-	 * $toplevel string  If not empty, will create a new top level menu (for expected values see http://codex.wordpress.org/Administration_Menus#Using_add_submenu_page)
-	 * $icon string  Path to an icon for the top level menu
-	 * $parent string  ( default: options-general.php )
-	 * $capability string  ( default: 'manage_options' )
-	 * $page_title string  ( mandatory )
-	 * $menu_title string  ( default: $page_title )
-	 * $page_slug string  ( default: sanitized $page_title )
-	 * $nonce string  ( default: $page_slug )
-	 * $action_link string|bool  Text of the action link on the Plugins page ( default: 'Settings' )
-	 * $admin_action_priority int The priority that the admin_menu action should be executed at ( default: 10 )
+	 * $page_title string (mandatory)
+	 * $parent (string)  (default: options-general.php)
+	 * $capability (string)  (default: 'manage_options')
+	 * $menu_title (string)  (default: $page_title)
+	 * $page_slug (string)  (default: sanitized $page_title)
+	 * $toplevel (string)  If not empty, will create a new top level menu (for expected values see http://codex.wordpress.org/Administration_Menus#Using_add_submenu_page)
+	 * - $icon_url (string)  URL to an icon for the top level menu
+	 * - $position (int)  Position of the toplevel menu (caution!)
+	 * $screen_icon (string)  The icon type to use in the screen header
+	 * $nonce string  (default: $page_slug)
+	 * $action_link (string|bool)  Text of the action link on the Plugins page (default: 'Settings')
+	 * $admin_action_priority int  The priority that the admin_menu action should be executed at (default: 10)
 	 */
 	protected $args;
 
@@ -115,7 +117,7 @@ abstract class scbAdminPage {
 	// A generic page header
 	function page_header() {
 		echo "<div class='wrap'>\n";
-		screen_icon();
+		screen_icon( $this->args['screen_icon'] );
 		echo "<h2>" . $this->args['page_title'] . "</h2>\n";
 	}
 
@@ -311,7 +313,7 @@ abstract class scbAdminPage {
 			$this->pagehook = add_submenu_page( $parent, $page_title, $menu_title, $capability, $page_slug, array( $this, '_page_content_hook' ) );
 		} else {
 			$func = 'add_' . $toplevel . '_page';
-			$this->pagehook = $func( $page_title, $menu_title, $capability, $page_slug, array( $this, '_page_content_hook' ), $icon_url );
+			$this->pagehook = $func( $page_title, $menu_title, $capability, $page_slug, array( $this, '_page_content_hook' ), $icon_url, $position );
 		}
 
 		if ( ! $this->pagehook )
@@ -335,7 +337,9 @@ abstract class scbAdminPage {
 
 		$this->args = wp_parse_args( $this->args, array(
 			'toplevel' => '',
-			'icon' => '',
+			'position' => null,
+			'icon_url' => '',
+			'screen_icon' => '',
 			'parent' => 'options-general.php',
 			'capability' => 'manage_options',
 			'menu_title' => $this->args['page_title'],
