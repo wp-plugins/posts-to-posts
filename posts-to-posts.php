@@ -2,7 +2,7 @@
 /*
 Plugin Name: Posts 2 Posts
 Description: Create many-to-many relationships between all types of posts.
-Version: 0.9-alpha
+Version: 0.9-alpha2
 Author: scribu
 Author URI: http://scribu.net/
 Plugin URI: http://scribu.net/wordpress/posts-to-posts
@@ -42,6 +42,7 @@ function _p2p_init() {
 	require_once dirname( __FILE__ ) . '/admin/base.php';
 	require_once dirname( __FILE__ ) . '/admin/data.php';
 	require_once dirname( __FILE__ ) . '/admin/box.php';
+	require_once dirname( __FILE__ ) . '/admin/fields.php';
 
 	P2P_Connections::init( __FILE__ );
 
