@@ -1,9 +1,9 @@
 <?php
 
 /**
- * Takes care of everything related to connection data: currently connected posts, potentially connected posts etc.
+ * A connection-type aware API
  */
-class P2P_Connections_Handler {
+class P2P_Connections_Policy {
 
 	protected $args;
 
@@ -77,6 +77,12 @@ class P2P_Connections_Handler {
 			'update_post_term_cache' => false,
 			'ignore_sticky_posts' => true,
 		);
+
+		if ( $this->sortable ) {
+			$args['connected_orderby'] = $this->sortable;
+			$args['connected_order'] = 'ASC';
+			$args['connected_order_num'] = true;
+		}
 
 		$args = apply_filters( 'p2p_current_connections_args', $args, $this->args );
 

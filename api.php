@@ -9,6 +9,7 @@
  *  - 'to' string|array The second end of the connection.
  *  - 'fields' array( key => Title ) Metadata fields editable by the user (optional).
  *  - 'data' array( key => value ) Metadata fields not editable by the user (optional).
+ *  - 'sortable' string A custom field key used to add a special column that allows manual connection ordering. Default: false.
  *  - 'prevent_duplicates' bool Wether to disallow duplicate connections between the same two posts. Default: true.
  *  - 'reciprocal' bool Wether to show the box on both sides of the connection. Default: false.
  *  - 'title' string The box's title. Default: 'Connected {$post_type}s'
@@ -25,10 +26,15 @@ function p2p_register_connection_type( $args ) {
 	$defaults = array(
 		'from' => '',
 		'to' => '',
+		'reciprocal' => false,
+
 		'fields' => array(),
 		'data' => array(),
+		'sortable' => false,
+
 		'prevent_duplicates' => true,
-		'reciprocal' => false,
+		'connections_per_post' => false,
+
 		'title' => '',
 		'context' => 'side',
 	);
@@ -37,7 +43,7 @@ function p2p_register_connection_type( $args ) {
 
 	foreach ( (array) $args['from'] as $from ) {
 		foreach ( (array) $args['to'] as $to ) {
-			P2P_Connection_Types::register( array_merge( $args, compact( 'from', 'to' ) ) );
+			$GLOBALS['_p2p_connection_types'][] = array_merge( $args, compact( 'from', 'to' ) );
 		}
 	}
 }
