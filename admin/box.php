@@ -11,18 +11,22 @@ class P2P_Box {
 
 	private $data;
 
-	private $metabox_args;
+	private $current_ptype;
+	private $direction;
 
 	public $ptype;
 
 	private $columns;
 
-	function __construct( $box_id, $data, $metabox_args ) {
+	function __construct( $box_id, $data, $current_ptype, $direction ) {
 		$this->box_id = $box_id;
 		$this->data = $data;
-		$this->metabox_args = $metabox_args;
 
-		$this->ptype = get_post_type_object( $this->data->to );
+		$this->direction = $direction;
+
+		$this->current_ptype = $current_ptype;
+
+		$this->ptype = get_post_type_object( $this->data->get_other_post_type( $direction ) );
 
 		if ( !class_exists( 'Mustache' ) )
 			require dirname(__FILE__) . '/../mustache/Mustache.php';
@@ -49,30 +53,36 @@ class P2P_Box {
 		) );
 	}
 
-	function __get( $key ) {
-		return $this->metabox_args[ $key ];
-	}
-
 	public function register() {
+		$title = $this->data->get_title( $this->direction );
+
+		if ( empty( $title ) ) {
+			$title = sprintf( __( 'Connected %s', P2P_TEXTDOMAIN ), $this->ptype->labels->name );
+		}
+
 		add_meta_box(
 			'p2p-connections-' . $this->box_id,
-			$this->data->get_title(),
+			$title,
 			array( $this, 'render' ),
-			$this->data->from,
-			$this->context,
+			$this->current_ptype,
+			$this->data->context,
 			'default'
 		);
 	}
 
 	function render( $post ) {
-		$connected_ids = $this->data->get_current_connections( $post->ID );
+		$data = array();
 
-		$data = array(
-			'create-label' => __( 'Create connections:', P2P_TEXTDOMAIN ),
-		);
+		$connected_posts = $this->data->get_connected( $post->ID )->posts;
 
-		if ( empty( $connected_ids ) )
+		if ( empty( $connected_posts ) )
 			$data['hide-connections'] = 'style="display:none"';
+
+		$tbody = '';
+		foreach ( $connected_posts as $connected ) {
+			$tbody .= $this->connection_row( $connected->p2p_id, $connected->ID );
+		}
+		$data['tbody'] = $tbody;
 
 		foreach ( $this->columns as $key => $field ) {
 			$data['thead'][] = array(
@@ -83,7 +93,6 @@ class P2P_Box {
 
 		$data_attr = array(
 			'box_id' => $this->box_id,
-			'direction' => $this->data->direction,
 			'prevent_duplicates' => $this->data->prevent_duplicates,
 		);
 
@@ -92,11 +101,7 @@ class P2P_Box {
 			$data_attr_str[] = "data-$key='" . $value . "'";
 		$data['attributes'] = implode( ' ', $data_attr_str );
 
-		$tbody = '';
-		foreach ( $connected_ids as $p2p_id => $post_b ) {
-			$tbody .= $this->connection_row( $p2p_id, $post_b );
-		}
-		$data['tbody'] = $tbody;
+		$data['create-label'] = __( 'Create connections:', P2P_TEXTDOMAIN );
 
 		// Search tab
 		$tab_content = _p2p_mustache_render( 'tab-search.html', array(
@@ -147,7 +152,13 @@ class P2P_Box {
 	}
 
 	protected function post_rows( $current_post_id, $page = 1, $search = '' ) {
-		$candidate = $this->data->get_connection_candidates( $current_post_id, $page, $search );
+		$query = $this->data->get_connectable( $current_post_id, $page, $search );
+
+		$candidate = (object) array(
+			'posts' => $query->posts,
+			'current_page' => max( 1, $query->get('paged') ),
+			'total_pages' => $query->max_num_pages
+		);
 
 		if ( empty( $candidate->posts ) )
 			return false;
@@ -193,7 +204,19 @@ class P2P_Box {
 	// Ajax handlers
 
 	public function ajax_create_post() {
-		$this->safe_connect( $this->data->create_post( $_POST['post_title'] ) );
+		$this->safe_connect( $this->create_post( $_POST['post_title'] ) );
+	}
+
+	private function create_post( $title ) {
+		$args = array(
+			'post_title' => $title,
+			'post_author' => get_current_user_id(),
+			'post_type' => $this->ptype->name
+		);
+
+		$args = apply_filters( 'p2p_new_post_args', $args, $this->data );
+
+		return wp_insert_post( $args );
 	}
 
 	public function ajax_connect() {
@@ -213,7 +236,7 @@ class P2P_Box {
 	}
 
 	public function ajax_disconnect() {
-		$this->data->delete_connection( $_POST['p2p_id'] );
+		p2p_delete_connection( $_POST['p2p_id'] );
 
 		die(1);
 	}

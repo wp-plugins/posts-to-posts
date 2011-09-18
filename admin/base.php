@@ -2,7 +2,7 @@
 
 define( 'P2P_BOX_NONCE', 'p2p-box' );
 
-class P2P_Connection_Types {
+class P2P_Box_Factory {
 
 	function init() {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_boxes' ) );
@@ -71,35 +71,16 @@ class P2P_Connection_Types {
 		if ( !isset( $GLOBALS['_p2p_connection_types'][ $box_id ] ) )
 			return false;
 
-		$args = $GLOBALS['_p2p_connection_types'][ $box_id ];
+		$ctype = $GLOBALS['_p2p_connection_types'][ $box_id ];
 
-		$reciprocal = _p2p_pluck( $args, 'reciprocal' );
+		$direction = $ctype->get_direction( $post_type, false );
 
-		$direction = false;
-
-		if ( $reciprocal && $post_type == $args['from'] && $args['from'] == $args['to'] ) {
-			$direction = 'any';
-		} elseif ( $reciprocal && $post_type == $args['to'] ) {
-			$direction = 'to';
-		} elseif ( $post_type == $args['from'] ) {
-			$direction = 'from';
-		}
-
-		if ( !$direction )
+		if ( !$direction || ( !$ctype->reciprocal && 'from' != $direction ) )
 			return false;
 
-		$args['direction'] = $direction;
-
-		$metabox_args = array();
-		foreach ( array( 'context' ) as $key ) {
-			$metabox_args[ $key ] = _p2p_pluck( $args, $key );
-		}
-
-		$policy = new P2P_Connections_Policy( $args );
-
-		return new P2P_Box( $box_id, $policy, $metabox_args );
+		return new P2P_Box( $box_id, $ctype, $post_type, $direction );
 	}
 }
 
-P2P_Connection_Types::init();
+P2P_Box_Factory::init();
 

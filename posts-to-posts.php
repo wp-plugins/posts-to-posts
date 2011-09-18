@@ -2,7 +2,7 @@
 /*
 Plugin Name: Posts 2 Posts
 Description: Create many-to-many relationships between all types of posts.
-Version: 0.9-alpha2
+Version: 0.9-alpha3
 Author: scribu
 Author URI: http://scribu.net/
 Plugin URI: http://scribu.net/wordpress/posts-to-posts
@@ -33,63 +33,21 @@ define( 'P2P_TEXTDOMAIN', 'posts-to-posts' );
 require dirname( __FILE__ ) . '/scb/load.php';
 
 function _p2p_init() {
-	load_plugin_textdomain( P2P_TEXTDOMAIN, '', basename( dirname( __FILE__ ) ) . '/lang' );
+	$base = dirname( __FILE__ );
 
-	require_once dirname( __FILE__ ) . '/storage.php';
-	require_once dirname( __FILE__ ) . '/query.php';
-	require_once dirname( __FILE__ ) . '/api.php';
+	load_plugin_textdomain( P2P_TEXTDOMAIN, '', basename( $base ) . '/lang' );
 
-	P2P_Connections::init( __FILE__ );
+	foreach ( array( 'storage', 'query', 'type', 'api' ) as $file )
+		require_once "$base/core/$file.php";
 
-	P2P_Migrate::init();
-
-	require_once dirname( __FILE__ ) . '/policy.php';
+	P2P_Storage::init( __FILE__ );
 
 	if ( is_admin() ) {
-		require_once dirname( __FILE__ ) . '/admin/base.php';
-		require_once dirname( __FILE__ ) . '/admin/box.php';
-		require_once dirname( __FILE__ ) . '/admin/fields.php';
+		foreach ( array( 'base', 'box', 'fields' ) as $file )
+			require_once "$base/admin/$file.php";
 	}
+
+	$GLOBALS['_p2p_connection_types'] = array();
 }
 scb_init( '_p2p_init' );
-
-
-class P2P_Migrate {
-
-	function init() {
-		add_action( 'admin_notices', array( __CLASS__, 'migrate' ) );
-	}
-
-	function migrate() {
-		if ( !isset( $_GET['migrate_p2p'] ) || !current_user_can( 'administrator' ) )
-			return;
-
-		$tax = 'p2p';
-
-		register_taxonomy( $tax, 'post', array( 'public' => false ) );
-
-		$count = 0;
-		foreach ( get_terms( $tax ) as $term ) {
-			$post_b = (int) substr( $term->slug, 1 );
-			$post_a = get_objects_in_term( $term->term_id, $tax );
-
-			p2p_connect( $post_a, $post_b );
-
-			wp_delete_term( $term->term_id, $tax );
-
-			$count += count( $post_a );
-		}
-
-		printf( "<div class='updated'><p>Migrated %d connections.</p></div>", $count );
-	}
-}
-
-
-function _p2p_pluck( &$args, $key ) {
-	$value = $args[ $key ];
-
-	unset( $args[ $key ] );
-
-	return $value;
-}
 

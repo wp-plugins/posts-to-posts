@@ -5,15 +5,17 @@
  * This creates the appropriate meta box in the admin edit screen
  *
  * @param array $args Can be:
- *  - 'from' string|array The first end of the connection.
- *  - 'to' string|array The second end of the connection.
+ *  - 'from' string The first end of the connection.
+ *  - 'to' string The second end of the connection.
  *  - 'fields' array( key => Title ) Metadata fields editable by the user (optional).
  *  - 'data' array( key => value ) Metadata fields not editable by the user (optional).
  *  - 'sortable' string A custom field key used to add a special column that allows manual connection ordering. Default: false.
  *  - 'prevent_duplicates' bool Wether to disallow duplicate connections between the same two posts. Default: true.
- *  - 'reciprocal' bool Wether to show the box on both sides of the connection. Default: false.
  *  - 'title' string The box's title. Default: 'Connected {$post_type}s'
+ *  - 'reciprocal' bool Wether to show the box on both sides of the connection. Default: false.
  *  - 'context' string Where should the box show up by default. Possible values: 'advanced' or 'side'
+ *
+ *  @return bool|object False on failure, P2P_Connection_Type instance on success.
  */
 function p2p_register_connection_type( $args ) {
 	$argv = func_get_args();
@@ -26,24 +28,30 @@ function p2p_register_connection_type( $args ) {
 	$defaults = array(
 		'from' => '',
 		'to' => '',
-		'reciprocal' => false,
-
 		'fields' => array(),
 		'data' => array(),
 		'sortable' => false,
 		'prevent_duplicates' => true,
-
 		'title' => '',
+
+		'reciprocal' => false,
 		'context' => 'side',
 	);
 
 	$args = wp_parse_args( $args, $defaults );
 
-	foreach ( (array) $args['from'] as $from ) {
-		foreach ( (array) $args['to'] as $to ) {
-			$GLOBALS['_p2p_connection_types'][] = array_merge( $args, compact( 'from', 'to' ) );
+	foreach ( array( 'from', 'to' ) as $key ) {
+		if ( !post_type_exists( $args[$key] ) ) {
+			trigger_error( "Invalid post type: $args[$key]", E_USER_WARNING );
+			return false;
 		}
 	}
+
+	$instance = new P2P_Connection_Type( $args );
+
+	$GLOBALS['_p2p_connection_types'][] = $instance;
+
+	return $instance;
 }
 
 /**
@@ -56,7 +64,7 @@ function p2p_register_connection_type( $args ) {
 function p2p_connect( $from, $to, $data = array() ) {
 	foreach ( (array) $from as $from ) {
 		foreach ( (array) $to as $to ) {
-			P2P_Connections::connect( $from, $to, $data );
+			P2P_Storage::connect( $from, $to, $data );
 		}
 	}
 }
@@ -71,7 +79,7 @@ function p2p_connect( $from, $to, $data = array() ) {
 function p2p_disconnect( $from, $to, $data = array() ) {
 	foreach ( (array) $from as $from ) {
 		foreach ( (array) $to as $to ) {
-			P2P_Connections::disconnect( $from, $to, $data );
+			P2P_Storage::disconnect( $from, $to, $data );
 		}
 	}
 }
@@ -88,7 +96,7 @@ function p2p_disconnect( $from, $to, $data = array() ) {
  * @return array( p2p_id => post_id )
  */
 function p2p_get_connected( $post_id, $direction = 'any', $data = array() ) {
-	return P2P_Connections::get( $post_id, $direction, $data );
+	return P2P_Storage::get( $post_id, $direction, $data );
 }
 
 /**
@@ -114,37 +122,7 @@ function p2p_is_connected( $from, $to, $data = array() ) {
  * @return int Number of connections deleted
  */
 function p2p_delete_connection( $p2p_id ) {
-	return P2P_Connections::delete( $p2p_id );
-}
-
-/**
- * Optimized inner query, after the outer query was executed. (any direction)
- *
- * @param object $query The outer query.
- * @param string|array $args The query vars for the inner query.
- */
-function p2p_each_connected( $query, $qv ) {
-	return P2P_Query::_each_connected( 'any', $query, $qv );
-}
-
-/**
- * Optimized inner query, after the outer query was executed. ('to' direction)
- *
- * @param object $query The outer query.
- * @param string|array $args The query vars for the inner query.
- */
-function p2p_each_connected_to( $query, $qv ) {
-	return P2P_Query::_each_connected( 'to', $query, $qv );
-}
-
-/**
- * Optimized inner query, after the outer query was executed. ('from' direction)
- *
- * @param object $query The outer query.
- * @param string|array $args The query vars for the inner query.
- */
-function p2p_each_connected_from( $query, $qv ) {
-	return P2P_Query::_each_connected( 'from', $query, $qv );
+	return P2P_Storage::delete( $p2p_id );
 }
 
 /**
