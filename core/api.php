@@ -25,33 +25,14 @@ function p2p_register_connection_type( $args ) {
 		@list( $args['from'], $args['to'], $args['reciprocal'] ) = $argv;
 	}
 
-	$defaults = array(
-		'from' => '',
-		'to' => '',
+	$args = wp_parse_args( $args, array(
+		'show_ui' => true,
 		'fields' => array(),
-		'data' => array(),
-		'sortable' => false,
-		'prevent_duplicates' => true,
-		'title' => '',
-
 		'reciprocal' => false,
 		'context' => 'side',
-	);
+	) );
 
-	$args = wp_parse_args( $args, $defaults );
-
-	foreach ( array( 'from', 'to' ) as $key ) {
-		if ( !post_type_exists( $args[$key] ) ) {
-			trigger_error( "Invalid post type: $args[$key]", E_USER_WARNING );
-			return false;
-		}
-	}
-
-	$instance = new P2P_Connection_Type( $args );
-
-	$GLOBALS['_p2p_connection_types'][] = $instance;
-
-	return $instance;
+	return P2P_Connection_Type::get_instance( $args );
 }
 
 /**
@@ -126,24 +107,45 @@ function p2p_delete_connection( $p2p_id ) {
 }
 
 /**
- * List some posts
+ * List some posts.
  *
- * @param object|array A WP_Query instance, a list of post objects or a list of post ids
+ * @param object|array A WP_Query instance, or a list of post objects
+ * @param array $args (optional)
  */
-function p2p_list_posts( $posts ) {
+function p2p_list_posts( $posts, $args = array() ) {
 	if ( is_object( $posts ) )
 		$posts = $posts->posts;
+
+	$args = wp_parse_args( $args, array(
+		'before_list' => '<ul>', 'after_list' => '</ul>',
+		'before_item' => '<li>', 'after_item' => '</li>',
+		'template' => false
+	) );
+
+	extract( $args, EXTR_SKIP );
 
 	if ( empty( $posts ) )
 		return;
 
-	if ( is_object( $posts[0] ) )
-		$posts = wp_list_pluck( $posts, 'ID' );
+	echo $before_list;
 
-	echo '<ul>';
-	foreach ( $posts as $post_id ) {
-		echo html( 'li', html( 'a', array( 'href' => get_permalink( $post_id ) ), get_the_title( $post_id ) ) );
+	foreach ( $posts as $post ) {
+		$GLOBALS['post'] = $post;
+
+		setup_postdata( $post );
+
+		echo $before_item;
+
+		if ( $template )
+			locate_template( $template, true, false );
+		else
+			echo html( 'a', array( 'href' => get_permalink( $post->ID ) ), get_the_title( $post->ID ) );
+
+		echo $after_item;
 	}
-	echo '</ul>';
+
+	echo $after_list;
+
+	wp_reset_postdata();
 }
 
