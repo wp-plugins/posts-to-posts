@@ -8,45 +8,76 @@ class P2P_Connection_Type {
 
 	protected function __construct( $args ) {
 		$this->args = $args;
+
 	}
 
 	public function __get( $key ) {
 		return $this->args[$key];
 	}
 
-	public function get_instance( $args ) {
+	public function get_instance( $hash ) {
+		if ( isset( self::$instances[ $hash ] ) )
+			return self::$instances[ $hash ];
+
+		return false;
+	}
+
+	public function make_instance( $args ) {
 		$args = wp_parse_args( $args, array(
 			'from' => '',
 			'to' => '',
 			'data' => array(),
+			'reciprocal' => false,
 			'sortable' => false,
 			'prevent_duplicates' => true,
 			'title' => '',
 		) );
 
-		foreach ( array( 'from', 'to' ) as $key ) {
-			if ( !post_type_exists( $args[$key] ) ) {
-				trigger_error( "Invalid post type: $args[$key]", E_USER_WARNING );
+		if ( is_array( $args['to'] ) ) {
+			trigger_error( "'to' argument can't be an array.", E_USER_WARNING );
+			return false;
+		}
+
+		if ( is_array( $args['from'] ) ) {
+			if ( in_array( $args['to'], $args['from'] ) ) {
+				trigger_error( "'to' post type {$args['to']} appears in 'from' array.", E_USER_WARNING );
+				return false;
+			}
+
+			$args['reciprocal'] = false;
+		}
+
+		if ( !post_type_exists( $args['to'] ) ) {
+			trigger_error( "The '{$args['to']}' post type does not exist.", E_USER_WARNING );
+			return false;
+		}
+
+		foreach ( (array) $args['from'] as $ptype ) {
+			if ( !post_type_exists( $ptype ) ) {
+				trigger_error( "The '$ptype' post type does not exist.", E_USER_WARNING );
 				return false;
 			}
 		}
 
-		$instance = new P2P_Connection_Type( $args );
+		$hash = md5( serialize( wp_array_slice_assoc( $args, array( 'from', 'to', 'data' ) ) ) );
 
-		self::$instances[] = $instance;
+		if ( isset( self::$instances[ $hash ] ) ) {
+			trigger_error( 'Connection type is already defined.', E_USER_NOTICE );
+			return self::$instances[ $hash ];
+		}
 
-		return $instance;
+		return self::$instances[ $hash ] = new P2P_Connection_Type( $args );
 	}
 
 	/**
 	 * Get connection direction.
 	 *
 	 * @param int|string $arg A post id or a post type.
-	 * @param bool $warn Wether to trigger a notice on error.
+	 * @param bool $respect_reciprocal Whether to take the 'reciprocal' arg into consideration.
 	 *
 	 * @return bool|string False on failure, 'any', 'to' or 'from' on success.
 	 */
-	public function get_direction( $arg, $warn = true ) {
+	public function get_direction( $arg, $respect_reciprocal = false ) {
 		if ( $post_id = (int) $arg ) {
 			$post = get_post( $post_id );
 			if ( !$post )
@@ -57,23 +88,20 @@ class P2P_Connection_Type {
 		}
 
 		if ( $post_type == $this->to && $this->from == $post_type )
-			return 'any';
+			$direction = 'any';
+		elseif ( $this->to == $post_type )
+			$direction = 'to';
+		elseif ( is_array( $this->from ) && in_array( $post_type, $this->from ) )
+			$direction = 'from';
+		elseif ( $this->from == $post_type )
+			$direction = 'from';
+		else
+			return false;
 
-		if ( $this->to == $post_type )
-			return 'to';
+		if ( $respect_reciprocal && !$this->reciprocal && 'to' == $direction )
+			return false;
 
-		if ( $this->from == $post_type )
-			return 'from';
-
-		if ( $warn ) {
-			trigger_error( sprintf( "Invalid post type. Expected '%s' or '%s', but received '%s'.",
-				$this->args['from'],
-				$this->args['to'],
-				$post_type
-			), E_USER_WARNING );
-		}
-
-		return false;
+		return $direction;
 	}
 
 	public function get_other_post_type( $direction ) {
@@ -108,12 +136,12 @@ class P2P_Connection_Type {
 	 * @param int $post_id A post id.
 	 * @param array $extra_qv Additional query variables to use
 	 *
-	 * @return object A WP_Query instance.
+	 * @return bool|object False on failure; A WP_Query instance on success.
 	 */
 	public function get_connected( $post_id, $extra_qv = array() ) {
 		$direction = $this->get_direction( $post_id );
 		if ( !$direction )
-			return array();
+			return false;
 
 		$args = $this->get_base_args( $direction, $extra_qv );
 
@@ -142,12 +170,12 @@ class P2P_Connection_Type {
 	 * @param int $page A page number.
 	 * @param string $search A search string.
 	 *
-	 * @return object A WP_Query instance.
+	 * @return bool|object False on failure; A WP_Query instance on success.
 	 */
 	public function get_connectable( $post_id, $extra_qv ) {
 		$direction = $this->get_direction( $post_id );
 		if ( !$direction )
-			return array();
+			return false;
 
 		$args = $this->get_base_args( $direction, $extra_qv );
 
