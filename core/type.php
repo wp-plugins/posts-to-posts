@@ -34,7 +34,11 @@ class P2P_Connection_Type {
 		) );
 
 		foreach ( array( 'from', 'to' ) as $key ) {
-			$args[ $key ] = array_filter( (array) $args[ $key ] );
+			$args[ $key ] = array_values( array_filter( (array) $args[ $key ], 'post_type_exists' ) );
+			if ( empty( $args[ $key ] ) ) {
+				trigger_error( "'$key' arg doesn't contain any valid post types", E_USER_WARNING );
+				return false;
+			}
 			sort( $args[ $key ] );
 		}
 
@@ -155,7 +159,8 @@ class P2P_Connection_Type {
 		$args = $this->get_base_args( $direction, $extra_qv );
 
 		_p2p_append( $args, array(
-			P2P_Query::get_qv( $direction ) => $post_id,
+			'connected' => $post_id,
+			'connected_direction' => $direction,
 			'connected_meta' => $this->data,
 		) );
 
@@ -228,10 +233,6 @@ class P2P_Connection_Type {
 			$post->$prop_name = array();
 			$posts[ $post->ID ] = $post;
 		}
-
-		// ignore other 'connected' query vars for the inner query
-		foreach ( array_keys( P2P_Query::$qv_map ) as $qv )
-			unset( $extra_qv[ $qv ] );
 
 		// ignore pagination
 		foreach ( array( 'showposts', 'posts_per_page', 'posts_per_archive_page' ) as $disabled_qv ) {
