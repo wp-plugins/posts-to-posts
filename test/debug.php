@@ -71,6 +71,27 @@ class P2P_Debug {
 			'data' => array( 'type' => 'friends' )
 		) );
 
+		//register_post_type('actor');
+		//register_post_type('movie');
+
+		//global $wpdb;
+
+		//$movie_ids = $actor_ids = array();
+
+		//for ( $i=0; $i<20; $i++ ) {
+			//$actor_ids[] = wp_insert_post(array(
+				//'post_type' => 'actor',
+				//'post_title' => "Actor $i",
+				//'post_status' => 'publish'
+			//));
+
+			//$movie_ids[] = wp_insert_post(array(
+				//'post_type' => 'movie',
+				//'post_title' => "Movie $i",
+				//'post_status' => 'publish'
+			//));
+		//}
+
 		self::$ctype = p2p_register_connection_type( array( 'actor', 'post' ), array( 'page', 'movie' ), true );
 	}
 
