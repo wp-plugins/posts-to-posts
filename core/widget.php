@@ -34,7 +34,7 @@ class P2P_Widget extends scbWidget {
 		if ( !is_singular() )
 			return;
 
-		$ctype = P2P_Connection_Type::get_instance( $instance['ctype'] );
+		$ctype = p2p_type( $instance['ctype'] );
 		if ( !$ctype )
 			return;
 
@@ -47,11 +47,6 @@ class P2P_Widget extends scbWidget {
 			return;
 
 		$title = $directed->get_title();
-
-		if ( empty( $title ) ) {
-			$ptype = get_post_type_object( $directed->get_other_post_type() );
-			$title = sprintf( __( 'Related %s', P2P_TEXTDOMAIN ), $ptype->label );
-		}
 
 		$title = apply_filters( 'widget_title', $title, $instance, $this->id_base );
 

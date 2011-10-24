@@ -104,14 +104,18 @@ class P2P_Connection_Type {
 	}
 
 	/**
-	 * Check if a certain post or post type could have connections of this type.
+	 * Attempt to find a post type.
 	 *
-	 * @param int|string $arg A post id or a post type.
-	 *
-	 * @return bool|string False on failure, direction on success.
+	 * @param mixed $arg A post type, a post id, a post object, an array of post ids or of objects.
 	 */
-	public function can_have_connections( $arg ) {
-		if ( $post_id = (int) $arg ) {
+	private function find_post_type( $arg ) {
+		if ( is_array( $arg ) ) {
+			$arg = reset( $arg );
+		}
+
+		if ( is_object( $arg ) ) {
+			$post_type = $arg->post_type;
+		} elseif ( $post_id = (int) $arg ) {
 			$post = get_post( $post_id );
 			if ( !$post )
 				return false;
@@ -120,6 +124,20 @@ class P2P_Connection_Type {
 			$post_type = $arg;
 		}
 
+		if ( !post_type_exists( $post_type ) )
+			return false;
+
+		return $post_type;
+	}
+
+	/**
+	 * Check if a certain post or post type could have connections of this type.
+	 *
+	 * @param string $post_type A post type to check against.
+	 *
+	 * @return bool|string False on failure, direction on success.
+	 */
+	private function can_have_connections( $post_type ) {
 		if ( in_array( $post_type, $this->from ) ) {
 			$direction = 'from';
 		} elseif ( in_array( $post_type, $this->to ) ) {
@@ -153,7 +171,11 @@ class P2P_Connection_Type {
 	 * @return bool|object False on failure, P2P_Directed_Connection_Type instance on success.
 	 */
 	public function find_direction( $arg ) {
-		$direction = $this->can_have_connections( $arg );
+		$post_type = $this->find_post_type( $arg );
+		if ( !$post_type )
+			return false;
+
+		$direction = $this->can_have_connections( $post_type );
 		if ( !$direction )
 			return false;
 
@@ -224,7 +246,7 @@ class P2P_Connection_Type {
 	/**
 	 * Get a list of posts that are connected to a given post.
 	 *
-	 * @param int $post_id A post id.
+	 * @param int|array $post_id A post id or an array of post ids.
 	 * @param array $extra_qv Additional query variables to use.
 	 *
 	 * @return bool|object False on failure; A WP_Query instance on success.
@@ -235,6 +257,31 @@ class P2P_Connection_Type {
 			return false;
 
 		return $directed->get_connected( $post_id, $extra_qv );
+	}
+
+	/**
+	 * Get a list of posts connected to other posts connected to a post.
+	 *
+	 * @param int|array $post_id A post id or array of post ids
+	 * @param array $extra_qv Additional query variables to use.
+	 *
+	 * @return bool|object False on failure; A WP_Query instance on success.
+	 */
+	function get_related( $post_id, $extra_qv = array() ) {
+		$post_id = (array) $post_id;
+
+		$connected = $this->get_connected( $post_id, $extra_qv );
+		if ( !$connected )
+			return false;
+
+		if ( !$connected->have_posts() )
+			return $connected;
+
+		$connected_ids = wp_list_pluck( $connected->posts, 'ID' );
+
+		return $this->get_connected( $connected_ids, array(
+			'post__not_in' => $post_id,
+		) );
 	}
 
 	/**
