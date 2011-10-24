@@ -26,29 +26,41 @@ class P2P_Directed_Connection_Type {
 	}
 
 	function __get( $key ) {
-		if ( 'direction' == $key )
-			return $this->direction;
-
-		if ( 'cardinality' == $key )
-			return $this->cardinality;
-
 		return $this->ctype->$key;
+	}
+
+	function __isset( $key ) {
+		return isset( $this->ctype->$key );
+	}
+
+	public function get_direction() {
+		return $this->direction;
+	}
+
+	public function set_direction( $direction ) {
+		return $this->ctype->set_direction( $direction );
 	}
 
 	public function lose_direction() {
 		return $this->ctype;
 	}
 
-	public function get_title() {
-		$title = $this->title;
+	public function accepts_single_connection() {
+		return 'one' == $this->cardinality;
+	}
 
-		if ( is_array( $title ) ) {
-			$key = ( 'to' == $this->direction ) ? 'to' : 'from';
+	public function get_title( $two_boxes = false ) {
+		$key = ( 'to' == $this->direction ) ? 'to' : 'from';
 
-			if ( isset( $title[ $key ] ) )
-				$title = $title[ $key ];
-			else
-				$title = '';
+		$title = $this->title[ $key ];
+
+		if ( $two_boxes && $this->title['from'] == $this->title['to'] ) {
+			$map = array(
+				'from' => __( ' (from)', P2P_TEXTDOMAIN ),
+				'to' => __( ' (to)', P2P_TEXTDOMAIN ),
+			);
+
+			$title .= $map[$key];
 		}
 
 		return $title;
@@ -156,8 +168,8 @@ class P2P_Directed_Connection_Type {
 	public function disconnect_all( $from ) {
 		$connected = $this->get_connected( $from );
 
-		foreach ( wp_list_pluck( $connected->posts, 'p2p_id' ) as $p2p_id )
-			P2P_Storage::delete( $p2p_id );
+		foreach ( $connected->posts as $post )
+			P2P_Storage::delete( $post->p2p_id );
 	}
 }
 

@@ -14,6 +14,8 @@ interface P2P_Field {
 class P2P_Box {
 	private $ctype;
 
+	private $args;
+
 	private $current_ptype;
 
 	public $ptype;
@@ -26,14 +28,13 @@ class P2P_Box {
 		'post_status' => 'any',
 	);
 
-	function __construct( $ctype, $current_ptype ) {
+	function __construct( $args, $ctype, $current_ptype ) {
+		$this->args = $args;
+
 		$this->ctype = $ctype;
 
 		$this->current_ptype = $current_ptype;
 		$this->ptype = $this->get_first_valid_ptype( $this->ctype->get_other_post_type() );
-
-		if ( !class_exists( 'Mustache' ) )
-			require dirname(__FILE__) . '/../mustache/Mustache.php';
 
 		add_filter( 'posts_search', array( __CLASS__, '_search_by_title' ), 10, 2 );
 
@@ -48,19 +49,15 @@ class P2P_Box {
 		return $ptype;
 	}
 
-	public function register() {
-		$title = $this->ctype->get_title();
-
-		if ( empty( $title ) ) {
-			$title = sprintf( __( 'Connected %s', P2P_TEXTDOMAIN ), $this->ptype->labels->name );
-		}
+	public function register( $two_boxes = false ) {
+		$title = $this->ctype->get_title( $two_boxes );
 
 		add_meta_box(
-			'p2p-connections-' . $this->ctype->id,
+			'p2p-' . $this->ctype->get_direction() . '-' . $this->ctype->id,
 			$title,
 			array( $this, 'render' ),
 			$this->current_ptype,
-			$this->ctype->context,
+			$this->args->context,
 			'default'
 		);
 
@@ -84,7 +81,7 @@ class P2P_Box {
 			'title' => new P2P_Field_Title( $this->ptype->labels->singular_name ),
 		);
 
-		foreach ( $this->ctype->fields as $key => $data ) {
+		foreach ( $this->args->fields as $key => $data ) {
 			$this->columns[ $key ] = new P2P_Field_Generic( $data );
 		}
 
@@ -100,23 +97,27 @@ class P2P_Box {
 		$this->connected_posts = $this->ctype->get_connected( $post->ID, $qv )->posts;
 
 		$data = array(
+			'attributes' => $this->render_data_attributes(),
 			'connections' => $this->render_connections_table( $post ),
-			'create-connections' => $this->render_create_connections( $post )
+			'create-connections' => $this->render_create_connections( $post ),
 		);
 
+		echo P2P_Mustache::render( 'box', $data );
+	}
+
+	protected function render_data_attributes() {
 		$data_attr = array(
 			'ctype_id' => $this->ctype->id,
 			'prevent_duplicates' => $this->ctype->prevent_duplicates,
-			'cardinality' => $this->ctype->cardinality,
+			'cardinality' => $this->ctype->accepts_single_connection() ? 'one' : 'many',
+			'direction' => $this->ctype->get_direction()
 		);
 
 		$data_attr_str = array();
 		foreach ( $data_attr as $key => $value )
 			$data_attr_str[] = "data-$key='" . $value . "'";
 
-		$data['attributes'] = implode( ' ', $data_attr_str );
-
-		echo _p2p_mustache_render( 'box.html', $data );
+		return implode( ' ', $data_attr_str );
 	}
 
 	protected function render_connections_table( $post ) {
@@ -125,9 +126,9 @@ class P2P_Box {
 		if ( empty( $this->connected_posts ) )
 			$data['hide'] = 'style="display:none"';
 
-		$tbody = '';
+		$tbody = array();
 		foreach ( $this->connected_posts as $connected ) {
-			$tbody .= $this->connection_row( $connected->p2p_id, $connected->ID );
+			$tbody[] = $this->connection_row( $connected->p2p_id, $connected->ID );
 		}
 		$data['tbody'] = $tbody;
 
@@ -138,19 +139,19 @@ class P2P_Box {
 			);
 		}
 
-		return _p2p_mustache_render( 'table.html', $data );
+		return $data;
 	}
 
 	protected function render_create_connections( $post ) {
 		$data = array(
-			'create-label' => __( 'Create connections:', P2P_TEXTDOMAIN )
+			'label' => __( 'Create connections:', P2P_TEXTDOMAIN )
 		);
 
-		if ( 'one' == $this->ctype->cardinality && !empty( $this->connected_posts ) )
+		if ( $this->ctype->accepts_single_connection() && !empty( $this->connected_posts ) )
 			$data['hide'] = 'style="display:none"';
 
 		// Search tab
-		$tab_content = _p2p_mustache_render( 'tab-search.html', array(
+		$tab_content = P2P_Mustache::render( 'tab-search', array(
 			'placeholder' => $this->ptype->labels->search_items,
 		) );
 
@@ -170,7 +171,7 @@ class P2P_Box {
 
 		// Create post tab
 		if ( $this->can_create_post() ) {
-			$tab_content = _p2p_mustache_render( 'tab-create-post.html', array(
+			$tab_content = P2P_Mustache::render( 'tab-create-post', array(
 				'title' => $this->ptype->labels->add_new_item
 			) );
 
@@ -181,20 +182,27 @@ class P2P_Box {
 			);
 		}
 
-		return _p2p_mustache_render( 'create-connections.html', $data );
+		return $data;
 	}
 
-	protected function connection_row( $p2p_id, $post_id ) {
+	protected function connection_row( $p2p_id, $post_id, $render = false ) {
+		return $this->table_row( $this->columns, $p2p_id, $post_id, $render );
+	}
+
+	protected function table_row( $columns, $p2p_id, $post_id, $render = false ) {
 		$data = array();
 
-		foreach ( $this->columns as $key => $field ) {
+		foreach ( $columns as $key => $field ) {
 			$data['columns'][] = array(
 				'column' => $key,
 				'content' => $field->render( $key, $p2p_id, $post_id )
 			);
 		}
 
-		return _p2p_mustache_render( 'table-row.html', $data );
+		if ( !$render )
+			return $data;
+
+		return P2P_Mustache::render( 'table-row', $data );
 	}
 
 	protected function post_rows( $current_post_id, $page = 1, $search = '' ) {
@@ -227,16 +235,7 @@ class P2P_Box {
 		);
 
 		foreach ( $candidate->posts as $post ) {
-			$row = array();
-
-			foreach ( $columns as $key => $field ) {
-				$row['columns'][] = array(
-					'column' => $key,
-					'content' => $field->render( $key, 0, $post->ID )
-				);
-			}
-
-			$data['rows'][] = $row;
+			$data['rows'][] = $this->table_row( $columns, 0, $post->ID );
 		}
 
 		if ( $candidate->total_pages > 1 ) {
@@ -256,7 +255,7 @@ class P2P_Box {
 			);
 		}
 
-		return _p2p_mustache_render( 'tab-list.html', $data, array( 'table-row' ) );
+		return P2P_Mustache::render( 'tab-list', $data );
 	}
 
 
@@ -288,10 +287,10 @@ class P2P_Box {
 		if ( !$from || !$to )
 			die(-1);
 
-		$p2p_id = $this->ctype->lose_direction()->connect( $from, $to );
+		$p2p_id = $this->ctype->connect( $from, $to );
 
 		if ( $p2p_id )
-			echo $this->connection_row( $p2p_id, $to );
+			echo $this->connection_row( $p2p_id, $to, true );
 
 		die;
 	}
@@ -303,7 +302,7 @@ class P2P_Box {
 	}
 
 	public function ajax_clear_connections() {
-		$this->ctype->lose_direction()->disconnect_all( $_POST['post_id'] );
+		$this->ctype->disconnect_all( $_POST['post_id'] );
 
 		die(1);
 	}
@@ -323,7 +322,12 @@ class P2P_Box {
 	}
 
 	protected function can_create_post() {
-		if ( !$this->ctype->can_create_post )
+		if ( !$this->args->can_create_post )
+			return false;
+
+		$base_qv = ( 'from' == $this->ctype->get_direction() ) ? $this->ctype->to_query_vars : $this->ctype->from_query_vars;
+
+		if ( count( $base_qv ) > 1 )
 			return false;
 
 		$ptype = $this->ctype->get_other_post_type();
@@ -342,29 +346,5 @@ class P2P_Box {
 
 		return $sql;
 	}
-}
-
-
-// Helpers
-
-/**
- * @internal
- */
-function _p2p_mustache_render( $file, $data, $partials = array() ) {
-	$partial_data = array();
-	foreach ( $partials as $partial ) {
-		$partial_data[$partial] = _p2p_load_template( $partial . '.html' );
-	}
-
-	$m = new Mustache;
-
-	return $m->render( _p2p_load_template( $file ), $data, $partial_data );
-}
-
-/**
- * @internal
- */
-function _p2p_load_template( $file ) {
-	return file_get_contents( dirname(__FILE__) . '/templates/' . $file );
 }
 

@@ -12,7 +12,7 @@ class P2P_Connection_Type {
 			'from_query_vars' => array(),
 			'to_query_vars' => array(),
 			'data' => array(),
-			'indeterminate_direction' => 'any',
+			'reciprocal' => false,
 			'cardinality' => 'many-to-many',
 			'prevent_duplicates' => true,
 			'sortable' => false,
@@ -54,26 +54,63 @@ class P2P_Connection_Type {
 
 
 	protected $args;
+	protected $indeterminate;
 
 	protected function __construct( $args ) {
 		$this->args = $args;
+
+		$common = array_intersect( $this->from, $this->to );
+
+		if ( !empty( $common ) )
+			$this->indeterminate = true;
+
+		$this->expand_title();
+	}
+
+	protected function expand_title() {
+		$title = $this->args['title'];
+
+		if ( !$title )
+			$title = array();
+
+		if ( $title && !is_array( $title ) ) {
+			$this->args['title'] = array(
+				'from' => $title,
+				'to' => $title,
+			);
+		} else {
+			foreach ( array( 'from', 'to' ) as $key ) {
+				if ( empty( $this->args['title'][$key] ) ) {
+					$other_key = ( 'from' == $key ) ? 'to' : 'from';
+					$ptypes = $this->$other_key;
+					$this->args['title'][$key] = sprintf( __( 'Connected %s', P2P_TEXTDOMAIN ), get_post_type_object( $ptypes[0] )->labels->name );
+				}
+			}
+		}
 	}
 
 	public function __get( $key ) {
-		if ( in_array( $key, array( 'from', 'to' ) ) )
+		if ( 'from' == $key || 'to' == $key )
 			return $this->args[ "{$key}_query_vars" ]['post_type'];
+
+		if ( 'indeterminate' == $key )
+			return $this->indeterminate;
 
 		return $this->args[$key];
 	}
 
+	function __isset( $key ) {
+		return isset( $this->args[$key] );
+	}
+
 	/**
-	 * Get connection direction.
+	 * Check if a certain post or post type could have connections of this type.
 	 *
 	 * @param int|string $arg A post id or a post type.
 	 *
-	 * @return bool|string False on failure, 'any', 'to' or 'from' on success.
+	 * @return bool|string False on failure, direction on success.
 	 */
-	public function find_direction( $arg ) {
+	public function can_have_connections( $arg ) {
 		if ( $post_id = (int) $arg ) {
 			$post = get_post( $post_id );
 			if ( !$post )
@@ -83,17 +120,47 @@ class P2P_Connection_Type {
 			$post_type = $arg;
 		}
 
-		if ( in_array( $post_type, $this->from ) && in_array( $post_type, $this->to ) ) {
-			$direction = $this->indeterminate_direction;
-		} elseif ( in_array( $post_type, $this->from ) ) {
+		if ( in_array( $post_type, $this->from ) ) {
 			$direction = 'from';
 		} elseif ( in_array( $post_type, $this->to ) ) {
 			$direction = 'to';
 		} else {
-			return false;
+			$direction = false;
 		}
 
+		return $direction;
+	}
+
+	/**
+	 * Set the direction.
+	 *
+	 * @param string $direction Can be 'from', 'to' or 'any'.
+	 *
+	 * @return object P2P_Directed_Connection_Type instance
+	 */
+	public function set_direction( $direction ) {
+		if ( !in_array( $direction, array( 'from', 'to', 'any' ) ) )
+			return false;
+
 		return new P2P_Directed_Connection_Type( $this, $direction );
+	}
+
+	/**
+	 * Attempt to guess direction based on a post id or post type.
+	 *
+	 * @param int|string $arg A post id or a post type.
+	 *
+	 * @return bool|object False on failure, P2P_Directed_Connection_Type instance on success.
+	 */
+	public function find_direction( $arg ) {
+		$direction = $this->can_have_connections( $arg );
+		if ( !$direction )
+			return false;
+
+		if ( $this->indeterminate )
+			$direction = $this->reciprocal ? 'any' : 'from';
+
+		return $this->set_direction( $direction );
 	}
 
 	/**
