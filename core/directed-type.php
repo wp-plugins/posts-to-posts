@@ -66,40 +66,51 @@ class P2P_Directed_Connection_Type {
 		return $title;
 	}
 
+	public function get_current_post_type() {
+		return 'to' == $this->direction ? $this->to : $this->from;
+	}
+
 	public function get_other_post_type() {
-		return 'from' == $this->direction ? $this->to : $this->from;
+		return 'to' == $this->direction ? $this->from : $this->to;
 	}
 
 	public function is_sortable() {
 		return $this->sortable && 'from' == $this->direction;
 	}
 
-	private function get_base_args( $extra_qv ) {
+	private function get_base_qv() {
 		$base_qv = ( 'from' == $this->direction ) ? $this->to_query_vars : $this->from_query_vars;
 
-		return array_merge( $extra_qv, $base_qv, array(
+		return array_merge( $base_qv, array(
 			'suppress_filters' => false,
-			'ignore_sticky_posts' => true
+			'ignore_sticky_posts' => true,
 		) );
 	}
 
 	public function get_connected( $post_id, $extra_qv = array() ) {
-		$args = $this->get_base_args( $extra_qv );
+		$args = array();
+
+		if ( $this->is_sortable() ) {
+			$args = array(
+				'connected_orderby' => $this->sortable,
+				'connected_order' => 'ASC',
+				'connected_order_num' => true,
+			);
+		}
+
+		_p2p_append( $args, $extra_qv );
+
+		_p2p_append( $args, $this->get_base_qv() );
+
+		// don't completely overwrite 'connected_meta', but ensure that $this->data is added
+		$args = array_merge_recursive( $args, array(
+			'connected_meta' => $this->data
+		) );
 
 		$args['connected_query'] = array(
 			'posts' => $post_id,
 			'direction' => $this->direction
 		);
-
-		$args['connected_meta'] = $this->data;
-
-		if ( $this->is_sortable() ) {
-			_p2p_append( $args, array(
-				'connected_orderby' => $this->sortable,
-				'connected_order' => 'ASC',
-				'connected_order_num' => true,
-			) );
-		}
 
 		$args = apply_filters( 'p2p_connected_args', $args, $this );
 
@@ -107,7 +118,7 @@ class P2P_Directed_Connection_Type {
 	}
 
 	public function get_connectable( $post_id, $extra_qv = array() ) {
-		$args = $this->get_base_args( $extra_qv );
+		$args = array_merge( $this->get_base_qv(), $extra_qv );
 
 		if ( 'one' == $this->other_cardinality ) {
 			$connected = $this->get_connected( 'any', array( 'fields' => 'ids' ) )->posts;

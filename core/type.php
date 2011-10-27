@@ -42,8 +42,8 @@ class P2P_Connection_Type {
 		return self::$instances[ $id ] = new P2P_Connection_Type( $args );
 	}
 
-	public function get( $hash = false ) {
-		if ( !$hash )
+	public function get( $hash = null ) {
+		if ( 0 == func_num_args() )
 			return self::$instances;
 
 		if ( isset( self::$instances[ $hash ] ) )
@@ -82,8 +82,10 @@ class P2P_Connection_Type {
 			foreach ( array( 'from', 'to' ) as $key ) {
 				if ( empty( $this->args['title'][$key] ) ) {
 					$other_key = ( 'from' == $key ) ? 'to' : 'from';
-					$ptypes = $this->$other_key;
-					$this->args['title'][$key] = sprintf( __( 'Connected %s', P2P_TEXTDOMAIN ), get_post_type_object( $ptypes[0] )->labels->name );
+					$this->args['title'][$key] = sprintf(
+						__( 'Connected %s', P2P_TEXTDOMAIN ),
+						_p2p_get_ptype_label( $this->$other_key )
+					);
 				}
 			}
 		}
@@ -167,10 +169,11 @@ class P2P_Connection_Type {
 	 * Attempt to guess direction based on a post id or post type.
 	 *
 	 * @param int|string $arg A post id or a post type.
+	 * @param bool Whether to return an instance of P2P_Directed_Connection_Type or just the direction
 	 *
-	 * @return bool|object False on failure, P2P_Directed_Connection_Type instance on success.
+	 * @return bool|object|string False on failure, P2P_Directed_Connection_Type instance or direction on success.
 	 */
-	public function find_direction( $arg ) {
+	public function find_direction( $arg, $instantiate = true ) {
 		$post_type = $this->find_post_type( $arg );
 		if ( !$post_type )
 			return false;
@@ -182,7 +185,10 @@ class P2P_Connection_Type {
 		if ( $this->indeterminate )
 			$direction = $this->reciprocal ? 'any' : 'from';
 
-		return $this->set_direction( $direction );
+		if ( $instantiate )
+			return $this->set_direction( $direction );
+
+		return $direction;
 	}
 
 	/**
