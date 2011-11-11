@@ -84,7 +84,7 @@ class P2P_Field_Title implements P2P_Field {
 
 	function render( $key, $p2p_id, $post_id ) {
 		$data = array(
-			'title-attr' => get_post_type_object( get_post_type( $post_id ) )->labels->edit_item,
+			'title-attr' => get_permalink( $post_id ),
 			'title' => get_post_field( 'post_title', $post_id ),
 			'url' => get_edit_post_link( $post_id ),
 		);
@@ -109,10 +109,8 @@ class P2P_Field_Generic implements P2P_Field {
 
 	protected $data;
 
-	function __construct( $data ) {
-		if ( !is_array( $data ) )
-			$data = array( 'title' => $data );
-
+	function __construct( $data, $ctype_id ) {
+		$this->ctype_id = $ctype_id;
 		$this->data = $data;
 	}
 
@@ -121,20 +119,20 @@ class P2P_Field_Generic implements P2P_Field {
 	}
 
 	function render( $key, $p2p_id, $post_id ) {
-		$form = new scbForm(
-			array( $key => p2p_get_meta( $p2p_id, $key, true ) ),
-			array( 'p2p_meta', $p2p_id )
-		);
-
 		$args = array(
-			'type' => 'text',
-			'name' => $key
+			'name' => $key,
+			'type' => $this->data['type']
 		);
 
-		if ( isset( $this->data['values'] ) ) {
-			$args['type'] = 'select';
+		if ( isset( $this->data['values'] ) )
 			$args['value'] = $this->data['values'];
-		}
+
+		$single_value = ( 'checkbox' != $args['type'] );
+
+		$form = new scbForm(
+			array( $key => p2p_get_meta( $p2p_id, $key, $single_value ) ),
+			array( 'p2p_meta', $this->ctype_id, $p2p_id )
+		);
 
 		return $form->input( $args );
 	}
