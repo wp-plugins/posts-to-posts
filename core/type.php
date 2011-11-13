@@ -101,8 +101,16 @@ class P2P_Connection_Type {
 		return $this->args[$key];
 	}
 
-	function __isset( $key ) {
+	public function __isset( $key ) {
 		return isset( $this->args[$key] );
+	}
+
+	public function __call( $method, $args ) {
+		$directed = $this->find_direction( $args[0] );
+		if ( !$directed )
+			return false;
+
+		return call_user_func_array( array( $directed, $method ), $args );
 	}
 
 	/**
@@ -162,7 +170,23 @@ class P2P_Connection_Type {
 		if ( !in_array( $direction, array( 'from', 'to', 'any' ) ) )
 			return false;
 
+		if ( $orderby_key = $this->get_orderby_key( $direction ) )
+			return new P2P_Ordered_Connection_Type( $this, $direction, $orderby_key );
+
 		return new P2P_Directed_Connection_Type( $this, $direction );
+	}
+
+	private function get_orderby_key( $direction ) {
+		if ( !$this->sortable || 'any' == $direction )
+			return false;
+
+		if ( 'any' == $this->sortable || $direction == $this->sortable )
+			return '_order_' . $direction;
+
+		if ( 'from' == $direction )
+			return $this->sortable;
+
+		return false;
 	}
 
 	/**
@@ -250,22 +274,6 @@ class P2P_Connection_Type {
 	}
 
 	/**
-	 * Get a list of posts that are connected to a given post.
-	 *
-	 * @param int|array $post_id A post id or an array of post ids.
-	 * @param array $extra_qv Additional query variables to use.
-	 *
-	 * @return bool|object False on failure; A WP_Query instance on success.
-	 */
-	public function get_connected( $post_id, $extra_qv = array() ) {
-		$directed = $this->find_direction( $post_id );
-		if ( !$directed )
-			return false;
-
-		return $directed->get_connected( $post_id, $extra_qv );
-	}
-
-	/**
 	 * Get a list of posts connected to other posts connected to a post.
 	 *
 	 * @param int|array $post_id A post id or array of post ids
@@ -291,62 +299,65 @@ class P2P_Connection_Type {
 	}
 
 	/**
-	 * Get a list of posts that could be connected to a given post.
-	 *
-	 * @param int $post_id A post id.
-	 * @param array $extra_qv Additional query variables to use.
-	 *
-	 * @return bool|object False on failure; A WP_Query instance on success.
-	 */
-	public function get_connectable( $post_id, $extra_qv = array() ) {
-		$directed = $this->find_direction( $post_id );
-		if ( !$directed )
-			return false;
-
-		return $directed->get_connectable( $post_id, $extra_qv );
-	}
-
-	/**
-	 * Connect two posts.
+	 * Get the previous post in an ordered connection.
 	 *
 	 * @param int The first end of the connection.
 	 * @param int The second end of the connection.
 	 *
-	 * @return int p2p_id
+	 * @return bool|object False on failure, post object on success
 	 */
-	public function connect( $from, $to ) {
-		$directed = $this->find_direction( $from );
-		if ( !$directed )
-			return false;
-
-		return $directed->connect( $from, $to );
+	public function get_previous( $from, $to ) {
+		return $this->get_adjacent( $from, $to, -1 );
 	}
 
 	/**
-	 * Disconnect two posts.
+	 * Get the next post in an ordered connection.
 	 *
 	 * @param int The first end of the connection.
 	 * @param int The second end of the connection.
+	 *
+	 * @return bool|object False on failure, post object on success
 	 */
-	public function disconnect( $from, $to ) {
-		$directed = $this->find_direction( $from );
-		if ( !$directed )
-			return false;
-
-		return $directed->disconnect( $from, $to );
+	public function get_next( $from, $to ) {
+		return $this->get_adjacent( $from, $to, +1 );
 	}
 
 	/**
-	 * Delete all connections for a certain post.
+	 * Get another post in an ordered connection.
 	 *
-	 * @param int The post id.
+	 * @param int The first end of the connection.
+	 * @param int The second end of the connection.
+	 * @param int The position relative to the first parameter
+	 *
+	 * @return bool|object False on failure, post object on success
 	 */
-	public function disconnect_all( $from ) {
-		$directed = $this->find_direction( $from );
+	public function get_adjacent( $from, $to, $which ) {
+		$directed = $this->find_direction( $to );
 		if ( !$directed )
 			return false;
 
-		return $directed->disconnect_all( $from );
+		if ( !method_exists( $directed, 'get_orderby_key' ) )
+			return false;
+
+		$p2p_id = $directed->get_p2p_id( $to, $from );
+		if ( !$p2p_id )
+			return false;
+
+		$order = (int) p2p_get_meta( $p2p_id, $directed->get_orderby_key(), true );
+
+		$adjacent = $directed->get_connected( $to, array(
+			'connected_meta' => array(
+				array(
+					'key' => $directed->get_orderby_key(),
+					'value' => $order + $which
+				)
+			)
+		) )->posts;
+
+		if ( empty( $adjacent ) )
+			return false;
+
+		return $adjacent[0];
 	}
 
 	/**
@@ -356,14 +367,6 @@ class P2P_Connection_Type {
 	 */
 	public function delete_connection( $p2p_id ) {
 		return P2P_Storage::delete( $p2p_id );
-	}
-
-	public function get_p2p_id( $from, $to ) {
-		$directed = $this->find_direction( $from );
-		if ( !$directed )
-			return false;
-
-		return $directed->get_p2p_id( $from, $to );
 	}
 }
 

@@ -74,17 +74,6 @@ class P2P_Directed_Connection_Type {
 		return 'to' == $this->direction ? $this->from : $this->to;
 	}
 
-	public function get_sortby_field() {
-		if ( !$this->sortable || 'any' == $this->direction )
-			return false;
-
-		if ( 'any' == $this->sortable || $this->direction == $this->sortable )
-			return '_order_' . $this->direction;
-
-		if ( 'from' == $this->direction )
-			return $this->sortable;
-	}
-
 	private function get_base_qv() {
 		$base_qv = ( 'from' == $this->direction ) ? $this->to_query_vars : $this->from_query_vars;
 
@@ -94,18 +83,16 @@ class P2P_Directed_Connection_Type {
 		) );
 	}
 
+	/**
+	 * Get a list of posts that are connected to a given post.
+	 *
+	 * @param int|array $post_id A post id or an array of post ids.
+	 * @param array $extra_qv Additional query variables to use.
+	 *
+	 * @return bool|object False on failure; A WP_Query instance on success.
+	 */
 	public function get_connected( $post_id, $extra_qv = array() ) {
-		if ( $sortby = $this->get_sortby_field() ) {
-			$order_args = array(
-				'connected_orderby' => $sortby,
-				'connected_order' => 'ASC',
-				'connected_order_num' => true,
-			);
-		} else {
-			$order_args = array();
-		}
-
-		$args = array_merge( $order_args, $extra_qv, $this->get_base_qv() );
+		$args = array_merge( $extra_qv, $this->get_base_qv() );
 
 		// don't completely overwrite 'connected_meta', but ensure that $this->data is added
 		$args = array_merge_recursive( $args, array(
@@ -122,19 +109,31 @@ class P2P_Directed_Connection_Type {
 		return new WP_Query( $args );
 	}
 
+	/**
+	 * Get a list of posts that could be connected to a given post.
+	 *
+	 * @param int $post_id A post id.
+	 * @param array $extra_qv Additional query variables to use.
+	 *
+	 * @return bool|object False on failure; A WP_Query instance on success.
+	 */
 	public function get_connectable( $post_id, $extra_qv = array() ) {
 		$args = array_merge( $this->get_base_qv(), $extra_qv );
 
 		if ( 'one' == $this->other_cardinality ) {
-			$connected = $this->get_connected( 'any', array( 'fields' => 'ids' ) )->posts;
-		} else if ( $this->prevent_duplicates ) {
-			$connected = $this->get_connected( $post_id, array( 'fields' => 'ids' ) )->posts;
+			$to_check = 'any';
+		} elseif ( $this->prevent_duplicates ) {
+			$to_check = $post_id;
 		}
 
-		if ( !empty( $connected ) ) {
-			$args = array_merge_recursive( $args, array(
-				'post__not_in' => $connected
-			) );
+		if ( isset( $to_check ) ) {
+			$connected = $this->get_connected( $to_check, array( 'fields' => 'ids' ) )->posts;
+
+			if ( !empty( $connected ) ) {
+				$args = array_merge_recursive( $args, array(
+					'post__not_in' => $connected
+				) );
+			}
 		}
 
 		$args = apply_filters( 'p2p_connectable_args', $args, $this, $post_id );
@@ -151,6 +150,14 @@ class P2P_Directed_Connection_Type {
 		return false;
 	}
 
+	/**
+	 * Connect two posts.
+	 *
+	 * @param int The first end of the connection.
+	 * @param int The second end of the connection.
+	 *
+	 * @return int p2p_id
+	 */
 	public function connect( $from, $to ) {
 		if ( !get_post( $from ) || !get_post( $to ) )
 			return false;
@@ -179,10 +186,21 @@ class P2P_Directed_Connection_Type {
 		return $p2p_id;
 	}
 
+	/**
+	 * Disconnect two posts.
+	 *
+	 * @param int The first end of the connection.
+	 * @param int The second end of the connection.
+	 */
 	public function disconnect( $from, $to ) {
 		return P2P_Storage::delete( $this->get_p2p_id( $from, $to ) );
 	}
 
+	/**
+	 * Delete all connections for a certain post.
+	 *
+	 * @param int The post id.
+	 */
 	public function disconnect_all( $from ) {
 		$connected = $this->get_connected( $from );
 
