@@ -2,7 +2,7 @@
 /*
 Plugin Name: Posts 2 Posts
 Description: Create many-to-many relationships between all types of posts.
-Version: 1.0
+Version: 1.0.1-alpha
 Author: scribu
 Author URI: http://scribu.net/
 Plugin URI: http://scribu.net/wordpress/posts-to-posts
@@ -26,7 +26,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-define( 'P2P_PLUGIN_VERSION', '1.0' );
+define( 'P2P_PLUGIN_VERSION', '1.0.1-alpha' );
 
 define( 'P2P_TEXTDOMAIN', 'posts-to-posts' );
 
@@ -39,7 +39,7 @@ function _p2p_init() {
 
 	_p2p_load_files( "$base/core", array(
 		'storage', 'query',
-		'type', 'directed-type', 'ordered-type',
+		'util', 'type', 'directed-type', 'ordered-type',
 		'api', 'widget'
 	) );
 
@@ -55,9 +55,5 @@ scb_init( '_p2p_init' );
 function _p2p_load_files( $dir, $files ) {
 	foreach ( $files as $file )
 		require_once "$dir/$file.php";
-}
-
-function _p2p_get_ptype_label( $ptypes ) {
-	return get_post_type_object( $ptypes[0] )->labels->name;
 }
 

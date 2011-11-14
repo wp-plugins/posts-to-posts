@@ -42,10 +42,11 @@ class P2P_Connection_Type {
 		return self::$instances[ $id ] = new P2P_Connection_Type( $args );
 	}
 
-	public function get( $hash = null ) {
-		if ( 0 == func_num_args() )
-			return self::$instances;
+	public function get_all_instances() {
+		return self::$instances;
+	}
 
+	public function get_instance( $hash ) {
 		if ( isset( self::$instances[ $hash ] ) )
 			return self::$instances[ $hash ];
 
@@ -64,31 +65,7 @@ class P2P_Connection_Type {
 		if ( !empty( $common ) )
 			$this->indeterminate = true;
 
-		$this->expand_title();
-	}
-
-	protected function expand_title() {
-		$title = $this->args['title'];
-
-		if ( !$title )
-			$title = array();
-
-		if ( $title && !is_array( $title ) ) {
-			$this->args['title'] = array(
-				'from' => $title,
-				'to' => $title,
-			);
-		} else {
-			foreach ( array( 'from', 'to' ) as $key ) {
-				if ( empty( $this->args['title'][$key] ) ) {
-					$other_key = ( 'from' == $key ) ? 'to' : 'from';
-					$this->args['title'][$key] = sprintf(
-						__( 'Connected %s', P2P_TEXTDOMAIN ),
-						_p2p_get_ptype_label( $this->$other_key )
-					);
-				}
-			}
-		}
+		$this->args['title'] = P2P_Util::expand_title( $this->args['title'], $this->from, $this->to );
 	}
 
 	public function __get( $key ) {
@@ -114,52 +91,6 @@ class P2P_Connection_Type {
 	}
 
 	/**
-	 * Attempt to find a post type.
-	 *
-	 * @param mixed $arg A post type, a post id, a post object, an array of post ids or of objects.
-	 */
-	private function find_post_type( $arg ) {
-		if ( is_array( $arg ) ) {
-			$arg = reset( $arg );
-		}
-
-		if ( is_object( $arg ) ) {
-			$post_type = $arg->post_type;
-		} elseif ( $post_id = (int) $arg ) {
-			$post = get_post( $post_id );
-			if ( !$post )
-				return false;
-			$post_type = $post->post_type;
-		} else {
-			$post_type = $arg;
-		}
-
-		if ( !post_type_exists( $post_type ) )
-			return false;
-
-		return $post_type;
-	}
-
-	/**
-	 * Check if a certain post or post type could have connections of this type.
-	 *
-	 * @param string $post_type A post type to check against.
-	 *
-	 * @return bool|string False on failure, direction on success.
-	 */
-	private function can_have_connections( $post_type ) {
-		if ( in_array( $post_type, $this->from ) ) {
-			$direction = 'from';
-		} elseif ( in_array( $post_type, $this->to ) ) {
-			$direction = 'to';
-		} else {
-			$direction = false;
-		}
-
-		return $direction;
-	}
-
-	/**
 	 * Set the direction.
 	 *
 	 * @param string $direction Can be 'from', 'to' or 'any'.
@@ -170,23 +101,10 @@ class P2P_Connection_Type {
 		if ( !in_array( $direction, array( 'from', 'to', 'any' ) ) )
 			return false;
 
-		if ( $orderby_key = $this->get_orderby_key( $direction ) )
+		if ( $orderby_key = P2P_Util::get_orderby_key( $this->sortable, $direction ) )
 			return new P2P_Ordered_Connection_Type( $this, $direction, $orderby_key );
 
 		return new P2P_Directed_Connection_Type( $this, $direction );
-	}
-
-	private function get_orderby_key( $direction ) {
-		if ( !$this->sortable || 'any' == $direction )
-			return false;
-
-		if ( 'any' == $this->sortable || $direction == $this->sortable )
-			return '_order_' . $direction;
-
-		if ( 'from' == $direction )
-			return $this->sortable;
-
-		return false;
 	}
 
 	/**
@@ -198,11 +116,11 @@ class P2P_Connection_Type {
 	 * @return bool|object|string False on failure, P2P_Directed_Connection_Type instance or direction on success.
 	 */
 	public function find_direction( $arg, $instantiate = true ) {
-		$post_type = $this->find_post_type( $arg );
+		$post_type = P2P_Util::find_post_type( $arg );
 		if ( !$post_type )
 			return false;
 
-		$direction = $this->can_have_connections( $post_type );
+		$direction = P2P_Util::get_direction( $post_type, $this->from, $this->to );
 		if ( !$direction )
 			return false;
 
@@ -281,7 +199,7 @@ class P2P_Connection_Type {
 	 *
 	 * @return bool|object False on failure; A WP_Query instance on success.
 	 */
-	function get_related( $post_id, $extra_qv = array() ) {
+	public function get_related( $post_id, $extra_qv = array() ) {
 		$post_id = (array) $post_id;
 
 		$connected = $this->get_connected( $post_id, $extra_qv );

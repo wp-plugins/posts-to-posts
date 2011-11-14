@@ -16,8 +16,6 @@ class P2P_Box {
 
 	private $args;
 
-	private $current_ptype;
-
 	public $ptype;
 
 	private $columns;
@@ -28,43 +26,19 @@ class P2P_Box {
 		'post_status' => 'any',
 	);
 
-	function __construct( $args, $ctype, $current_ptype ) {
+	function __construct( $args, $ctype ) {
 		$this->args = $args;
 
 		$this->ctype = $ctype;
 
-		$this->current_ptype = $current_ptype;
-		$this->ptype = $this->get_first_valid_ptype( $this->ctype->get_other_post_type() );
+		$this->ptype = P2P_Util::get_first_valid_ptype( $this->ctype->get_other_post_type() );
 
 		add_filter( 'posts_search', array( __CLASS__, '_search_by_title' ), 10, 2 );
 
 		$this->init_columns();
 	}
 
-	private function get_first_valid_ptype( $post_types ) {
-		do {
-			$ptype = get_post_type_object( array_shift( $post_types ) );
-		} while ( !$ptype && !empty( $post_types ) );
-
-		return $ptype;
-	}
-
-	public function register( $two_boxes = false ) {
-		$title = $this->ctype->get_title( $two_boxes );
-
-		add_meta_box(
-			'p2p-' . $this->ctype->get_direction() . '-' . $this->ctype->id,
-			$title,
-			array( $this, 'render' ),
-			$this->current_ptype,
-			$this->args->context,
-			'default'
-		);
-
-		$this->init_scripts();
-	}
-
-	protected function init_scripts() {
+	public function init_scripts() {
 		wp_enqueue_style( 'p2p-admin', plugins_url( 'box.css', __FILE__ ), array(), P2P_PLUGIN_VERSION );
 
 		wp_enqueue_script( 'p2p-admin', plugins_url( 'box.js', __FILE__ ), array( 'jquery' ), P2P_PLUGIN_VERSION, true );
@@ -330,9 +304,7 @@ class P2P_Box {
 		if ( count( $base_qv ) > 1 )
 			return false;
 
-		$ptype = $this->ctype->get_other_post_type();
-
-		if ( count( $ptype ) > 1 )
+		if ( count( $this->ctype->get_other_post_type() ) > 1 )
 			return false;
 
 		return current_user_can( $this->ptype->cap->edit_posts );

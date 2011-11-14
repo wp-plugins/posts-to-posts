@@ -21,7 +21,7 @@ class P2P_Widget extends scbWidget {
 		if ( empty( $instance ) )
 			$instance = $this->defaults;
 
-		$ctypes = array_map( array( __CLASS__, 'ctype_label' ), P2P_Connection_Type::get() );
+		$ctypes = array_map( array( __CLASS__, 'ctype_label' ), P2P_Connection_Type::get_all_instances() );
 
 		echo html( 'p', $this->input( array(
 			'type' => 'select',
@@ -64,7 +64,7 @@ class P2P_Widget extends scbWidget {
 			$connected = $ctype->get_related( $post_id );
 			$title = sprintf(
 				__( 'Related %s', P2P_TEXTDOMAIN ),
-				_p2p_get_ptype_label( $directed->get_current_post_type() )
+				P2P_Util::get_ptype_label( $directed->get_current_post_type() )
 			);
 		} else {
 			$connected = $directed->get_connected( $post_id );
