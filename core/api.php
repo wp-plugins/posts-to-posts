@@ -31,9 +31,7 @@
  *
  * - 'reciprocal' - bool For indeterminate connections: True means all connections are displayed in a single box. False means 'from' connections are shown in one box and 'to' connections are shown in another box. Default: false.
  *
- * - 'show_ui' - bool|string Whether to show the admin connections box. Can be 'from', 'to', 'any' or false. Default: 'any'.
- *
- * - 'context' - string Where should the box show up by default. Possible values: 'advanced' or 'side'
+ * - 'admin_box' - bool|string|array Whether and where to show the admin connections box.
  *
  * - 'can_create_post' - bool Whether to allow post creation via the connection box. Default: true.
  *
@@ -48,6 +46,7 @@ function p2p_register_connection_type( $args ) {
 
 	$argv = func_get_args();
 
+	// Back-compat begin
 	if ( count( $argv ) > 1 ) {
 		$args = array();
 		foreach ( array( 'from', 'to', 'reciprocal' ) as $i => $key ) {
@@ -56,35 +55,45 @@ function p2p_register_connection_type( $args ) {
 		}
 	}
 
-	$metabox_args = array(
-		'show_ui' => 'any',
-		'fields' => array(),
-		'context' => 'side',
-		'can_create_post' => true
-	);
-
-	foreach ( $metabox_args as $key => &$value ) {
-		if ( isset( $args[$key] ) ) {
-			$value = $args[$key];
-			unset( $args[$key] );
-		}
+	if ( isset( $args['show_ui'] ) ) {
+		$args['admin_box'] = array(
+			'show' => _p2p_pluck( $args, 'show_ui' )
+		);
+		if ( isset( $args['context'] ) )
+			$args['admin_box']['context'] = _p2p_pluck( $args, 'context' );
 	}
-	unset( $value );
+	// Back-compat end
 
-	if ( is_admin() && $metabox_args['show_ui'] ) {
-		foreach ( $metabox_args['fields'] as &$field_args ) {
-			if ( !is_array( $field_args ) )
-				$field_args = array( 'title' => $field_args );
-
-			$field_args['type'] = _p2p_get_field_type( $field_args );
-
-			if ( 'checkbox' == $field_args['type'] && !isset( $field_args['values'] ) )
-				$field_args['values'] = array( true => ' ' );
-		}
-		$args['_metabox_args'] = (object) $metabox_args;
+	// Box args
+	if ( isset( $args['admin_box'] ) ) {
+		$metabox_args = _p2p_pluck( $args, 'admin_box' );
+		if ( !is_array( $metabox_args ) )
+			$metabox_args = array( 'show' => $metabox_args );
+	} else {
+		$metabox_args = array();
 	}
 
-	return P2P_Connection_Type::register( $args );
+	foreach ( array( 'fields', 'can_create_post' ) as $key ) {
+		if ( isset( $args[ $key ] ) ) {
+			$metabox_args[ $key ] = _p2p_pluck( $args, $key );
+		}
+	}
+
+	// Column args
+	if ( isset( $args['admin_column'] ) ) {
+		$column_args = _p2p_pluck( $args, 'admin_column' );
+	} else {
+		$column_args = false;
+	}
+
+	$ctype = P2P_Connection_Type::register( $args );
+
+	if ( is_admin() ) {
+		P2P_Box_Factory::register( $ctype->id, $metabox_args );
+		P2P_Column_Factory::register( $ctype->id, $column_args );
+	}
+
+	return $ctype;
 }
 
 /**
