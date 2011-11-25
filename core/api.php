@@ -7,7 +7,7 @@
  *
  * Takes the following parameters, as an associative array:
  *
- * - 'id' - string A unique identifier for this connection type (optional).
+ * - 'name' - string A unique identifier for this connection type.
  *
  * - 'from' - string|array The first end of the connection.
  *
@@ -18,8 +18,6 @@
  * - 'to_query_vars' - array Additional query vars to pass to WP_Query. Default: none.
  *
  * - 'fields' - array( key => Title ) Metadata fields editable by the user. Default: none.
- *
- * - 'data' - array( key => value ) Metadata fields not editable by the user. Dfault: none.
  *
  * - 'cardinality' - string How many connection can each post have: 'one-to-many', 'many-to-one' or 'many-to-many'. Default: 'many-to-many'
  *
@@ -55,6 +53,10 @@ function p2p_register_connection_type( $args ) {
 		}
 	}
 
+	if ( isset( $args['id'] ) ) {
+		$args['name'] = _p2p_pluck( $args, 'id' );
+	}
+
 	if ( isset( $args['show_ui'] ) ) {
 		$args['admin_box'] = array(
 			'show' => _p2p_pluck( $args, 'show_ui' )
@@ -86,69 +88,171 @@ function p2p_register_connection_type( $args ) {
 		$column_args = false;
 	}
 
-	$ctype = P2P_Connection_Type::register( $args );
+	$ctype = P2P_Connection_Type_Factory::register( $args );
 
 	if ( is_admin() ) {
-		P2P_Box_Factory::register( $ctype->id, $metabox_args );
-		P2P_Column_Factory::register( $ctype->id, $column_args );
+		P2P_Box_Factory::register( $ctype->name, $metabox_args );
+		P2P_Column_Factory::register( $ctype->name, $column_args );
 	}
 
 	return $ctype;
 }
 
 /**
- * @internal
- */
-function _p2p_get_field_type( $args ) {
-	if ( isset( $args['type'] ) )
-		return $args['type'];
-
-	if ( isset( $args['values'] ) && is_array( $args['values'] ) )
-		return 'select';
-
-	return 'text';
-}
-
-/**
  * Get a connection type.
  *
- * @param string $id Connection type id
+ * @param string $p2p_type
  *
  * @return bool|object False if connection type not found, P2P_Connection_Type instance on success.
  */
-function p2p_type( $id ) {
-	return P2P_Connection_Type::get_instance( $id );
+function p2p_type( $p2p_type ) {
+	return P2P_Connection_Type_Factory::get_instance( $p2p_type );
+}
+
+/**
+ * Retrieve connections.
+ *
+ * @param string $p2p_type A valid connection type.
+ * @param array $args Query args.
+ *
+ * @return bool|array False on failure, list of connection objects on success.
+ */
+function p2p_get_connections( $p2p_type, $args = array() ) {
+	global $wpdb;
+
+	extract( wp_parse_args( $args, array(
+		'from' => 'any',
+		'to' => 'any',
+		'fields' => 'all',
+		'number' => '',
+		'offset' => ''
+	) ), EXTR_SKIP );
+
+	$where = $wpdb->prepare( 'WHERE p2p_type = %s', $p2p_type );
+
+	foreach ( array( 'from', 'to' ) as $key ) {
+		if ( 'any' == $$key )
+			continue;
+
+		$where .= $wpdb->prepare( " AND p2p_$key = %d", $$key );
+	}
+
+	if ( $number ) {
+		if ( $offset )
+			$limit = $wpdb->prepare( "LIMIT %d, %d", $offset, $number );
+		else
+			$limit = $wpdb->prepare( "LIMIT %d", $number );
+	} else {
+		$limit = '';
+	}
+
+	$fields = ( 'p2p_id' == $fields ) ? 'p2p_id' : '*';
+
+	$query = "SELECT $fields FROM $wpdb->p2p $where $limit";
+
+	if ( 'p2p_id' == $fields )
+		return $wpdb->get_col( $query );
+
+	return $wpdb->get_results( $query );
+}
+
+/**
+ * Retrieve a single connection.
+ *
+ * @param int $p2p_id The connection id.
+ *
+ * @return object
+ */
+function p2p_get_connection( $p2p_id ) {
+	global $wpdb;
+
+	return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->p2p WHERE p2p_id = %d", $p2p_id ) );
+}
+
+/**
+ * Create a connection.
+ *
+ * @param int $p2p_type A valid connection type.
+ * @param array $args Connection information.
+ *
+ * @return bool|int False on failure, p2p_id on success.
+ */
+function p2p_create_connection( $p2p_type, $args ) {
+	global $wpdb;
+
+	extract( wp_parse_args( $args, array(
+		'from' => false,
+		'to' => false,
+		'meta' => array()
+	) ), EXTR_SKIP );
+
+	$from = absint( $from );
+	$to = absint( $to );
+
+	if ( !$from || !$to )
+		return false;
+
+	$wpdb->insert( $wpdb->p2p, array( 'p2p_type' => $p2p_type, 'p2p_from' => $from, 'p2p_to' => $to ) );
+
+	$p2p_id = $wpdb->insert_id;
+
+	foreach ( $meta as $key => $value )
+		p2p_add_meta( $p2p_id, $key, $value );
+
+	return $p2p_id;
 }
 
 /**
  * Delete one or more connections.
+ *
+ * @param int $p2p_type A valid connection type.
+ * @param array $args Connection information.
+ *
+ * @return int Number of connections deleted
+ */
+function p2p_delete_connections( $p2p_type, $args = array() ) {
+	$args['fields'] = 'p2p_id';
+
+	return p2p_delete_connection( p2p_get_connections( $p2p_type, $args ) );
+}
+
+/**
+ * Delete connections using p2p_ids.
  *
  * @param int|array $p2p_id Connection ids
  *
  * @return int Number of connections deleted
  */
 function p2p_delete_connection( $p2p_id ) {
-	return P2P_Storage::delete( $p2p_id );
+	global $wpdb;
+
+	if ( empty( $p2p_id ) )
+		return 0;
+
+	$p2p_ids = array_map( 'absint', (array) $p2p_id );
+
+	$where = "WHERE p2p_id IN (" . implode( ',', $p2p_ids ) . ")";
+
+	$count = $wpdb->query( "DELETE FROM $wpdb->p2p $where" );
+	$wpdb->query( "DELETE FROM $wpdb->p2pmeta $where" );
+
+	return $count;
 }
 
-/**
- * Split some posts based on a certain connection field.
- *
- * @param object|array A WP_Query instance, or a list of post objects
- * @param string $key p2pmeta key
- */
-function p2p_split_posts( $posts, $key ) {
-	if ( is_object( $posts ) )
-		$posts = $posts->posts;
+function p2p_get_meta( $p2p_id, $key, $single = false ) {
+	return get_metadata( 'p2p', $p2p_id, $key, $single );
+}
 
-	$buckets = array();
+function p2p_update_meta( $p2p_id, $meta_key, $meta_value, $prev_value = '' ) {
+	return update_metadata( 'p2p', $p2p_id, $meta_key, $meta_value, $prev_value );
+}
 
-	foreach ( $posts as $post ) {
-		$value = p2p_get_meta( $post->p2p_id, $key, true );
-		$buckets[ $value ][] = $post;
-	}
+function p2p_add_meta( $p2p_id, $meta_key, $meta_value, $unique = false ) {
+	return add_metadata( 'p2p', $p2p_id, $meta_key, $meta_value, $unique );
+}
 
-	return $buckets;
+function p2p_delete_meta( $p2p_id, $meta_key, $meta_value = '' ) {
+	return delete_metadata( 'p2p', $p2p_id, $meta_key, $meta_value );
 }
 
 /**

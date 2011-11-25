@@ -1,64 +1,87 @@
 <?php
 
-class P2P_Connection_Type {
+class Generic_Connection_Type {
+	public $object = array();
 
-	private static $instances = array();
+	public $cardinality = array();
 
-	public function register( $args ) {
+	protected $args;
+
+	public function __construct( $args ) {
 		$args = wp_parse_args( $args, array(
-			'id' => false,
+			'type' => false,
 			'from' => '',
 			'to' => '',
-			'from_query_vars' => array(),
-			'to_query_vars' => array(),
 			'data' => array(),
-			'reciprocal' => false,
 			'cardinality' => 'many-to-many',
 			'prevent_duplicates' => true,
 			'sortable' => false,
 			'title' => '',
+			'reciprocal' => false,
+		) );
+
+		list( $this->cardinality['from'], $_, $this->cardinality['to'] ) = explode( '-', _p2p_pluck( $args, 'cardinality' ) );
+
+		foreach ( $this->cardinality as $key => &$value ) {
+			if ( 'one' != $value )
+				$value = 'many';
+		}
+
+		$this->args = $args;
+	}
+
+	public function __get( $key ) {
+		return $this->args[$key];
+	}
+
+	public function __isset( $key ) {
+		return isset( $this->args[$key] );
+	}
+}
+
+
+class P2P_Connection_type extends Generic_Connection_Type {
+
+	public $object = array(
+		'from' => 'post',
+		'to' => 'post',
+	);
+
+	public $query_vars = array();
+
+	protected $indeterminate;
+
+	public function __construct( $args ) {
+		$args = wp_parse_args( $args, array(
+			'from_query_vars' => array(),
+			'to_query_vars' => array(),
+			'data' => array()
 		) );
 
 		foreach ( array( 'from', 'to' ) as $key ) {
+			$qv = _p2p_pluck( $args, "{$key}_query_vars" );
+
 			if ( isset( $args[ $key ] ) ) {
-				$args["{$key}_query_vars"]['post_type'] = (array) $args[ $key ];
-				unset( $args[ $key ] );
+				$qv['post_type'] = (array) _p2p_pluck( $args, $key );
 			}
 
-			if ( empty( $args["{$key}_query_vars"]['post_type'] ) )
-				$args["{$key}_query_vars"]['post_type'] = array( 'post' );
+			if ( empty( $qv['post_type'] ) )
+				$qv['post_type'] = array( 'post' );
+
+			$this->query_vars[$key] = $qv;
 		}
 
-		$id =& $args['id'];
+		$p2p_type =& $args['name'];
 
-		if ( !$id ) {
-			$id = md5( serialize( wp_array_slice_assoc( $args, array( 'from_query_vars', 'to_query_vars', 'data' ) ) ) );
+		if ( !$p2p_type ) {
+			$p2p_type = md5( serialize( array(
+				$this->query_vars['from'],
+				$this->query_vars['to'],
+				$args['data']
+			) ) );
 		}
 
-		if ( isset( self::$instances[ $id ] ) ) {
-			trigger_error( 'Connection type is already defined.', E_USER_NOTICE );
-		}
-
-		return self::$instances[ $id ] = new P2P_Connection_Type( $args );
-	}
-
-	public function get_all_instances() {
-		return self::$instances;
-	}
-
-	public function get_instance( $hash ) {
-		if ( isset( self::$instances[ $hash ] ) )
-			return self::$instances[ $hash ];
-
-		return false;
-	}
-
-
-	protected $args;
-	protected $indeterminate;
-
-	protected function __construct( $args ) {
-		$this->args = $args;
+		parent::__construct( $args );
 
 		$common = array_intersect( $this->from, $this->to );
 
@@ -70,16 +93,12 @@ class P2P_Connection_Type {
 
 	public function __get( $key ) {
 		if ( 'from' == $key || 'to' == $key )
-			return $this->args[ "{$key}_query_vars" ]['post_type'];
+			return $this->query_vars[ $key ]['post_type'];
 
 		if ( 'indeterminate' == $key )
 			return $this->indeterminate;
 
 		return $this->args[$key];
-	}
-
-	public function __isset( $key ) {
-		return isset( $this->args[$key] );
 	}
 
 	public function __call( $method, $args ) {
@@ -276,15 +295,6 @@ class P2P_Connection_Type {
 			return false;
 
 		return $adjacent[0];
-	}
-
-	/**
-	 * Delete a connection.
-	 *
-	 * @param int p2p_id
-	 */
-	public function delete_connection( $p2p_id ) {
-		return P2P_Storage::delete( $p2p_id );
 	}
 }
 

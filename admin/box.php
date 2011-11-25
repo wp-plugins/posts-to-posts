@@ -71,7 +71,7 @@ class P2P_Box {
 		$this->connected_posts = $this->ctype->get_connected( $post->ID, $qv )->posts;
 
 		$data = array(
-			'ctype-id' => $this->ctype->id,
+			'p2p-type' => $this->ctype->name,
 			'attributes' => $this->render_data_attributes(),
 			'connections' => $this->render_connections_table( $post ),
 			'create-connections' => $this->render_create_connections( $post ),
@@ -82,7 +82,6 @@ class P2P_Box {
 
 	protected function render_data_attributes() {
 		$data_attr = array(
-			'ctype_id' => $this->ctype->id,
 			'prevent_duplicates' => $this->ctype->prevent_duplicates,
 			'cardinality' => $this->ctype->accepts_single_connection() ? 'one' : 'many',
 			'direction' => $this->ctype->get_direction()
@@ -271,7 +270,7 @@ class P2P_Box {
 	}
 
 	public function ajax_disconnect() {
-		P2P_Storage::delete( $_POST['p2p_id'] );
+		p2p_delete_connection( $_POST['p2p_id'] );
 
 		die(1);
 	}
@@ -300,7 +299,7 @@ class P2P_Box {
 		if ( !$this->args->can_create_post )
 			return false;
 
-		$base_qv = ( 'from' == $this->ctype->get_direction() ) ? $this->ctype->to_query_vars : $this->ctype->from_query_vars;
+		$base_qv = $this->ctype->get_opposite( 'query_vars' );
 
 		if ( count( $base_qv ) > 1 )
 			return false;

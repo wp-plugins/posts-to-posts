@@ -6,12 +6,15 @@
 class P2P_Query {
 
 	function init() {
-		add_action( 'parse_query', array( __CLASS__, 'parse_legacy_qv' ) );
+		add_action( 'parse_query', array( __CLASS__, 'parse_query' ) );
 		add_filter( 'posts_clauses', array( __CLASS__, 'posts_clauses' ), 10, 2 );
 		add_filter( 'the_posts', array( __CLASS__, 'cache_p2p_meta' ), 11, 2 );
 	}
 
-	function parse_legacy_qv( $wp_query ) {
+	function parse_query( $wp_query ) {
+		$q =& $wp_query->query_vars;
+
+		// Handle shortcut args
 		$qv_map = array(
 			'connected' => 'any',
 			'connected_to' => 'to',
@@ -19,33 +22,43 @@ class P2P_Query {
 		);
 
 		foreach ( $qv_map as $key => $direction ) {
-			$search = $wp_query->get( $key );
-			if ( !empty( $search ) ) {
-				$wp_query->set( 'connected_query', array(
-					'posts' => $search,
-					'direction' => $direction,
-				) );
-
-				$wp_query->set( $key, false );
+			if ( !empty( $q[ $key ] ) ) {
+				$q['connected_posts'] = _p2p_pluck( $q, $key );
+				$q['connected_direction'] = $direction;
 			}
 		}
+
+		// Handle connected_type arg
+		if ( !isset( $q['connected_posts'] ) || !isset( $q['connected_type'] ) )
+			return;
+
+		$connected_arg = _p2p_pluck( $q, 'connected_posts' );
+
+		$ctype = p2p_type( _p2p_pluck( $q, 'connected_type' ) );
+
+		if ( !$ctype )
+			return self::trigger_empty( $q );
+
+		if ( isset( $q['connected_direction'] ) )
+			$directed = $ctype->set_direction( _p2p_pluck( $q, 'connected_direction' ) );
+		else
+			$directed = $ctype->find_direction( $connected_arg );
+
+		if ( !$directed )
+			return self::trigger_empty( $q );
+
+		$q = $directed->get_connected_args( $connected_arg, $q );
+	}
+
+	private static function trigger_empty( &$q ) {
+		$q = array( 'year' => 2525 );
 	}
 
 	function posts_clauses( $clauses, $wp_query ) {
 		global $wpdb;
 
-		$connected_query = $wp_query->get( 'connected_query' );
-		if ( !is_array( $connected_query ) ) {
+		if ( ! $wp_query->get( 'connected_posts' ) )
 			return $clauses;
-		}
-
-		$defaults = array(
-			'posts' => 'any',
-			'direction' => 'any',
-			'operator' => 'in'
-		);
-
-		$connected_query = array_merge( $defaults, $connected_query );
 
 		$wp_query->_p2p_cache = true;
 
@@ -53,13 +66,19 @@ class P2P_Query {
 
 		$clauses['join'] .= " INNER JOIN $wpdb->p2p";
 
-		if ( 'any' == $connected_query['posts'] ) {
+		// Handle main query
+		if ( $p2p_type = $wp_query->get( 'p2p_type' ) )
+			$clauses['where'] .= $wpdb->prepare( " AND $wpdb->p2p.p2p_type = %s", $p2p_type );
+
+		$connected_posts = $wp_query->get( 'connected_posts' );
+
+		if ( 'any' == $connected_posts ) {
 			$search = false;
 		} else {
-			$search = implode( ',', array_map( 'absint', (array) $connected_query['posts'] ) );
+			$search = implode( ',', array_map( 'absint', (array) $connected_posts ) );
 		}
 
-		$direction = $connected_query['direction'];
+		$direction = $wp_query->get( 'connected_direction' );
 		if ( !in_array( $direction, array( 'from', 'to', 'any' ) ) )
 			$direction = 'any';
 
@@ -85,6 +104,7 @@ class P2P_Query {
 			}
 		}
 
+		// Handle custom fields
 		$connected_meta = $wp_query->get( 'connected_meta' );
 		if ( !empty( $connected_meta ) ) {
 			$meta_clauses = _p2p_meta_sql_helper( $connected_meta );

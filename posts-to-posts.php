@@ -39,7 +39,7 @@ function _p2p_init() {
 
 	_p2p_load_files( "$base/core", array(
 		'storage', 'query', 'url-query',
-		'util', 'type', 'directed-type', 'ordered-type',
+		'util', 'type-factory', 'type', 'directed-type', 'ordered-type',
 		'api', 'widget'
 	) );
 
@@ -47,10 +47,12 @@ function _p2p_init() {
 
 	if ( is_admin() ) {
 		_p2p_load_files( "$base/admin", array(
-			'utils',
+			'utils', 'tools',
 			'box-factory', 'box', 'fields',
 			'column-factory', 'column'
 		) );
+
+		new P2P_Tools( __FILE__ );
 	}
 }
 scb_init( '_p2p_init' );

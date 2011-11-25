@@ -5,24 +5,9 @@ class P2P_Directed_Connection_Type {
 	protected $ctype;
 	protected $direction;
 
-	protected $cardinality;
-	protected $other_cardinality;
-
 	function __construct( $ctype, $direction ) {
 		$this->ctype = $ctype;
 		$this->direction = $direction;
-
-		$this->set_cardinality();
-	}
-
-	protected function set_cardinality() {
-		$parts = explode( '-', $this->ctype->cardinality );
-
-		if ( 'to' == $this->direction )
-			$parts = array_reverse( $parts );
-
-		$this->cardinality = ( 'one' == $parts[2] ) ? 'one' : 'many';
-		$this->other_cardinality = ( 'one' == $parts[0] ) ? 'one' : 'many';
 	}
 
 	function __get( $key ) {
@@ -45,26 +30,42 @@ class P2P_Directed_Connection_Type {
 		return $this->ctype;
 	}
 
-	public function accepts_single_connection() {
-		return 'one' == $this->cardinality;
+	public function get_opposite( $key ) {
+		$direction = ( 'to' == $this->direction ) ? 'from' : 'to';
+
+		return $this->get_arg( $key, $direction );
 	}
 
-	public function get_title() {
-		$key = ( 'to' == $this->direction ) ? 'to' : 'from';
+	public function get_current( $key ) {
+		$direction = ( 'to' == $this->direction ) ? 'to' : 'from';
 
-		return $this->title[ $key ];
+		return $this->get_arg( $key, $direction );
+	}
+
+	private function get_arg( $key, $direction ) {
+		$arg = $this->ctype->$key;
+
+		return $arg[$direction];
+	}
+
+	public function accepts_single_connection() {
+		return 'one' == $this->get_opposite( 'cardinality' );
 	}
 
 	public function get_current_post_type() {
-		return 'to' == $this->direction ? $this->to : $this->from;
+		$qv = $this->get_current( 'query_vars' );
+
+		return $qv['post_type'];
 	}
 
 	public function get_other_post_type() {
-		return 'to' == $this->direction ? $this->from : $this->to;
+		$qv = $this->get_opposite( 'query_vars' );
+
+		return $qv['post_type'];
 	}
 
 	private function get_base_qv() {
-		$base_qv = ( 'from' == $this->direction ) ? $this->to_query_vars : $this->from_query_vars;
+		$base_qv = $this->get_opposite( 'query_vars' );
 
 		return array_merge( $base_qv, array(
 			'suppress_filters' => false,
@@ -78,7 +79,7 @@ class P2P_Directed_Connection_Type {
 	 * @param int|array $post_id A post id or an array of post ids.
 	 * @param array $extra_qv Additional query variables to use.
 	 *
-	 * @return A WP_Query instance on success.
+	 * @return object A WP_Query instance
 	 */
 	public function get_connected( $post_id, $extra_qv = array() ) {
 		return new WP_Query( $this->get_connected_args( $post_id, $extra_qv ) );
@@ -89,13 +90,11 @@ class P2P_Directed_Connection_Type {
 
 		// don't completely overwrite 'connected_meta', but ensure that $this->data is added
 		$args = array_merge_recursive( $args, array(
+			'p2p_type' => $this->name,
+			'connected_posts' => $post_id,
+			'connected_direction' => $this->direction,
 			'connected_meta' => $this->data
 		) );
-
-		$args['connected_query'] = array(
-			'posts' => $post_id,
-			'direction' => $this->direction
-		);
 
 		return apply_filters( 'p2p_connected_args', $args, $this, $post_id );
 	}
@@ -111,7 +110,7 @@ class P2P_Directed_Connection_Type {
 	public function get_connectable( $post_id, $extra_qv = array() ) {
 		$args = array_merge( $this->get_base_qv(), $extra_qv );
 
-		if ( 'one' == $this->other_cardinality ) {
+		if ( 'one' == $this->get_current( 'cardinality' ) ) {
 			$to_check = 'any';
 		} elseif ( $this->prevent_duplicates ) {
 			$to_check = $post_id;
@@ -171,7 +170,11 @@ class P2P_Directed_Connection_Type {
 			if ( 'to' == $this->direction )
 				$args = array_reverse( $args );
 
-			$p2p_id = P2P_Storage::connect( $args[0], $args[1], $this->data );
+			$p2p_id = p2p_create_connection( $this->name, array(
+				'from' => $args[0],
+				'to' => $args[1],
+				'meta' => $this->data
+			) );
 		}
 
 		return $p2p_id;
@@ -184,7 +187,7 @@ class P2P_Directed_Connection_Type {
 	 * @param int The second end of the connection.
 	 */
 	public function disconnect( $from, $to ) {
-		return P2P_Storage::delete( $this->get_p2p_id( $from, $to ) );
+		return p2p_delete_connection( $this->get_p2p_id( $from, $to ) );
 	}
 
 	/**
@@ -196,7 +199,7 @@ class P2P_Directed_Connection_Type {
 		$connected = $this->get_connected( $from );
 
 		foreach ( $connected->posts as $post )
-			P2P_Storage::delete( $post->p2p_id );
+			p2p_delete_connection( $post->p2p_id );
 	}
 }
 

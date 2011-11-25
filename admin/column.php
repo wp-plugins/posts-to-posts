@@ -15,7 +15,7 @@ class P2P_Column {
 	}
 
 	function add_column( $columns ) {
-		$columns['connected'] = $this->ctype->get_title();
+		$columns['connected'] = $this->ctype->get_current( 'title' );
 
 		return $columns;
 	}
@@ -27,8 +27,8 @@ class P2P_Column {
 		foreach ( $this->connected[ $post_id ] as $post ) {
 			$args = array(
 				'post_type' => get_post_type( $post_id ),
-				'connected_type' => $this->ctype->id,
-				'connected' => $post->ID,
+				'connected_type' => $this->ctype->name,
+				'connected_posts' => $post->ID,
 			);
 
 			$url = add_query_arg( $args, admin_url( 'edit.php' ) );

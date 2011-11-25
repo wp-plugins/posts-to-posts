@@ -71,15 +71,16 @@ abstract class P2P_Util {
 	 *
 	 * @return bool|string False on failure, the connection field key otherwise
 	 */
-	static function get_orderby_key( $ordering_direction, $connection_direction ) {
-		if ( !$ordering_direction || 'any' == $connection_direction )
+	static function get_orderby_key( $order_dir, $connection_dir ) {
+		if ( !$order_dir || 'any' == $connection_dir )
 			return false;
 
-		if ( 'any' == $ordering_direction || $connection_direction == $ordering_direction )
-			return '_order_' . $connection_direction;
+		if ( 'any' == $order_dir || $connection_dir == $order_dir )
+			return '_order_' . $connection_dir;
 
-		if ( 'from' == $connection_direction )
-			return $ordering_direction;
+		// Back-compat
+		if ( 'from' == $connection_dir )
+			return $order_dir;
 
 		return false;
 	}
@@ -115,9 +116,45 @@ abstract class P2P_Util {
 	}
 }
 
+/**
+ * @internal
+ */
+function _p2p_meta_sql_helper( $data ) {
+	global $wpdb;
+
+	if ( isset( $data[0] ) ) {
+		$meta_query = $data;
+	}
+	else {
+		$meta_query = array();
+
+		foreach ( $data as $key => $value ) {
+			$meta_query[] = compact( 'key', 'value' );
+		}
+	}
+
+	return get_meta_sql( $meta_query, 'p2p', $wpdb->p2p, 'p2p_id' );
+}
+
+/**
+ * @internal
+ */
 function _p2p_pluck( &$arr, $key ) {
 	$value = $arr[ $key ];
 	unset( $arr[ $key ] );
 	return $value;
+}
+
+/**
+ * @internal
+ */
+function _p2p_get_field_type( $args ) {
+	if ( isset( $args['type'] ) )
+		return $args['type'];
+
+	if ( isset( $args['values'] ) && is_array( $args['values'] ) )
+		return 'select';
+
+	return 'text';
 }
 
