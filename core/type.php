@@ -1,33 +1,63 @@
 <?php
 
 class Generic_Connection_Type {
-	public $object = array();
 
-	public $cardinality = array();
+	public $indeterminate = false;
+
+	public $side;
+
+	public $cardinality;
+
+	public $title;
 
 	protected $args;
 
-	public function __construct( $args ) {
-		$args = wp_parse_args( $args, array(
-			'type' => false,
-			'from' => '',
-			'to' => '',
-			'data' => array(),
-			'cardinality' => 'many-to-many',
-			'prevent_duplicates' => true,
-			'sortable' => false,
-			'title' => '',
-			'reciprocal' => false,
-		) );
+	public function __construct( $sides, $args ) {
+		$this->side = $sides;
 
-		list( $this->cardinality['from'], $_, $this->cardinality['to'] ) = explode( '-', _p2p_pluck( $args, 'cardinality' ) );
+		$this->args = $args;
+
+		$this->set_cardinality();
+
+		$this->title = $this->expand_title( _p2p_pluck( $this->args, 'title' ) );
+	}
+
+	protected function set_cardinality() {
+		$parts = explode( '-', _p2p_pluck( $this->args, 'cardinality' ) );
+
+		$this->cardinality['from'] = $parts[0];
+		$this->cardinality['to'] = $parts[2];
 
 		foreach ( $this->cardinality as $key => &$value ) {
 			if ( 'one' != $value )
 				$value = 'many';
 		}
+	}
 
-		$this->args = $args;
+	private function expand_title( $title ) {
+		if ( !$title )
+			$title = array();
+
+		if ( $title && !is_array( $title ) ) {
+			return array(
+				'from' => $title,
+				'to' => $title,
+			);
+		}
+
+		foreach ( array( 'from', 'to' ) as $key ) {
+			if ( isset( $title[$key] ) )
+				continue;
+
+			$other_key = ( 'from' == $key ) ? 'to' : 'from';
+
+			$title[$key] = sprintf(
+				__( 'Connected %s', P2P_TEXTDOMAIN ),
+				$this->side[ $other_key ]->get_title()
+			);
+		}
+
+		return $title;
 	}
 
 	public function __get( $key ) {
@@ -36,69 +66,6 @@ class Generic_Connection_Type {
 
 	public function __isset( $key ) {
 		return isset( $this->args[$key] );
-	}
-}
-
-
-class P2P_Connection_type extends Generic_Connection_Type {
-
-	public $object = array(
-		'from' => 'post',
-		'to' => 'post',
-	);
-
-	public $query_vars = array();
-
-	protected $indeterminate;
-
-	public function __construct( $args ) {
-		$args = wp_parse_args( $args, array(
-			'from_query_vars' => array(),
-			'to_query_vars' => array(),
-			'data' => array()
-		) );
-
-		foreach ( array( 'from', 'to' ) as $key ) {
-			$qv = _p2p_pluck( $args, "{$key}_query_vars" );
-
-			if ( isset( $args[ $key ] ) ) {
-				$qv['post_type'] = (array) _p2p_pluck( $args, $key );
-			}
-
-			if ( empty( $qv['post_type'] ) )
-				$qv['post_type'] = array( 'post' );
-
-			$this->query_vars[$key] = $qv;
-		}
-
-		$p2p_type =& $args['name'];
-
-		if ( !$p2p_type ) {
-			$p2p_type = md5( serialize( array(
-				$this->query_vars['from'],
-				$this->query_vars['to'],
-				$args['data']
-			) ) );
-		}
-
-		parent::__construct( $args );
-
-		$common = array_intersect( $this->from, $this->to );
-
-		if ( !empty( $common ) )
-			$this->indeterminate = true;
-
-		$this->args['title'] = P2P_Util::expand_title( $this->args['title'], $this->from, $this->to );
-	}
-
-	public function __get( $key ) {
-		if ( 'from' == $key || 'to' == $key )
-			return $this->query_vars[ $key ]['post_type'];
-
-		if ( 'indeterminate' == $key )
-			return $this->indeterminate;
-
-		return $this->args[$key];
 	}
 
 	public function __call( $method, $args ) {
@@ -120,9 +87,6 @@ class P2P_Connection_type extends Generic_Connection_Type {
 		if ( !in_array( $direction, array( 'from', 'to', 'any' ) ) )
 			return false;
 
-		if ( $orderby_key = P2P_Util::get_orderby_key( $this->sortable, $direction ) )
-			return new P2P_Ordered_Connection_Type( $this, $direction, $orderby_key );
-
 		return new P2P_Directed_Connection_Type( $this, $direction );
 	}
 
@@ -139,17 +103,45 @@ class P2P_Connection_type extends Generic_Connection_Type {
 		if ( !$post_type )
 			return false;
 
-		$direction = P2P_Util::get_direction( $post_type, $this->from, $this->to );
-		if ( !$direction )
-			return false;
+		foreach ( array( 'from', 'to' ) as $direction ) {
+			$side = $this->side[ $direction ];
 
-		if ( $this->indeterminate )
-			$direction = $this->reciprocal ? 'any' : 'from';
+			if ( 'post' != $side->object )
+				continue;
 
-		if ( $instantiate )
-			return $this->set_direction( $direction );
+			if ( !in_array( $post_type, $side->post_type ) )
+				continue;
 
-		return $direction;
+			if ( $this->indeterminate )
+				$direction = $this->reciprocal ? 'any' : 'from';
+
+			if ( $instantiate )
+				return $this->set_direction( $direction );
+
+			return $direction;
+		}
+
+		return false;
+	}
+}
+
+
+class P2P_Connection_Type extends Generic_Connection_Type {
+
+	public function __construct( $sides, $args ) {
+		parent::__construct( $sides, $args );
+
+		$common = array_intersect( $this->from, $this->to );
+
+		if ( !empty( $common ) )
+			$this->indeterminate = true;
+	}
+
+	public function __get( $key ) {
+		if ( 'from' == $key || 'to' == $key )
+			return $this->side[ $key ]->post_type;
+
+		return $this->args[$key];
 	}
 
 	/**

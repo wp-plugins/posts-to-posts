@@ -52,92 +52,73 @@ class P2P_Directed_Connection_Type {
 		return 'one' == $this->get_opposite( 'cardinality' );
 	}
 
-	public function get_current_post_type() {
-		$qv = $this->get_current( 'query_vars' );
-
-		return $qv['post_type'];
-	}
-
-	public function get_other_post_type() {
-		$qv = $this->get_opposite( 'query_vars' );
-
-		return $qv['post_type'];
-	}
-
-	private function get_base_qv() {
-		$base_qv = $this->get_opposite( 'query_vars' );
-
-		return array_merge( $base_qv, array(
-			'suppress_filters' => false,
-			'ignore_sticky_posts' => true,
-		) );
-	}
-
 	/**
 	 * Get a list of posts that are connected to a given post.
 	 *
 	 * @param int|array $post_id A post id or an array of post ids.
 	 * @param array $extra_qv Additional query variables to use.
 	 *
-	 * @return object A WP_Query instance
+	 * @return object
 	 */
 	public function get_connected( $post_id, $extra_qv = array() ) {
-		return new WP_Query( $this->get_connected_args( $post_id, $extra_qv ) );
+		$args = array_merge( $extra_qv, array(
+			'connected_type' => $this->name,
+			'connected_items' => $post_id
+		) );
+
+		return $this->get_opposite( 'side' )->get_connected( $args );
 	}
 
-	public function get_connected_args( $post_id, $extra_qv = array() ) {
-		$args = array_merge( $extra_qv, $this->get_base_qv() );
+	// called from P2P_Query
+	public function get_connected_args( $q ) {
+		if ( $orderby_key = $this->get_orderby_key() ) {
+			$q = wp_parse_args( $q, array(
+				'connected_orderby' => $orderby_key,
+				'connected_order' => 'ASC',
+				'connected_order_num' => true,
+			) );
+		}
 
-		// don't completely overwrite 'connected_meta', but ensure that $this->data is added
-		$args = array_merge_recursive( $args, array(
+		$q = array_merge( $this->get_opposite( 'side' )->query_vars, $q, array(
 			'p2p_type' => $this->name,
-			'connected_posts' => $post_id,
-			'connected_direction' => $this->direction,
+			'connected_direction' => $this->get_direction(),
+		) );
+
+		$q = array_merge_recursive( $q, array(
 			'connected_meta' => $this->data
 		) );
 
-		return apply_filters( 'p2p_connected_args', $args, $this, $post_id );
+		return apply_filters( 'p2p_connected_args', $q, $this, $q['connected_items'] );
+	}
+
+	public function get_orderby_key() {
+		if ( !$this->sortable || 'any' == $this->direction )
+			return false;
+
+		if ( 'any' == $this->sortable || $this->direction == $this->sortable )
+			return '_order_' . $this->direction;
+
+		// Back-compat
+		if ( 'from' == $this->direction )
+			return $this->sortable;
+
+		return false;
+	}
+
+	/**
+	 * @internal
+	 */
+	public function get_connections( $post_id ) {
+		return $this->get_opposite( 'side' )->get_connections( $this, $post_id );
 	}
 
 	/**
 	 * Get a list of posts that could be connected to a given post.
 	 *
 	 * @param int $post_id A post id.
-	 * @param array $extra_qv Additional query variables to use.
-	 *
-	 * @return bool|object False on failure; A WP_Query instance on success.
 	 */
-	public function get_connectable( $post_id, $extra_qv = array() ) {
-		$args = array_merge( $this->get_base_qv(), $extra_qv );
-
-		if ( 'one' == $this->get_current( 'cardinality' ) ) {
-			$to_check = 'any';
-		} elseif ( $this->prevent_duplicates ) {
-			$to_check = $post_id;
-		}
-
-		if ( isset( $to_check ) ) {
-			$connected = $this->get_connected( $to_check, array( 'fields' => 'ids' ) )->posts;
-
-			if ( !empty( $connected ) ) {
-				$args = array_merge_recursive( $args, array(
-					'post__not_in' => $connected
-				) );
-			}
-		}
-
-		$args = apply_filters( 'p2p_connectable_args', $args, $this, $post_id );
-
-		return new WP_Query( $args );
-	}
-
-	public function get_p2p_id( $from, $to ) {
-		$connected = $this->get_connected( $from, array( 'post__in' => array( $to ) ) );
-
-		if ( !empty( $connected->posts ) )
-			return (int) $connected->posts[0]->p2p_id;
-
-		return false;
+	public function get_connectable( $post_id, $page, $search ) {
+		return $this->get_opposite( 'side' )->get_connectable( $this, $post_id, $page, $search );
 	}
 
 	/**
@@ -149,14 +130,15 @@ class P2P_Directed_Connection_Type {
 	 * @return int p2p_id
 	 */
 	public function connect( $from, $to ) {
+		// TODO
 		if ( !get_post( $from ) || !get_post( $to ) )
 			return false;
 
 		$p2p_id = false;
 
-		if ( 'one' == $this->cardinality ) {
-			$connected = $this->get_connected( $from, array( 'fields' => 'ids' ) );
-			if ( !empty( $connected->posts ) )
+		if ( 'one' == $this->get_current( 'cardinality' ) ) {
+			$connected = $this->get_connections( $from, array( 'fields' => 'ids' ) );
+			if ( !empty( $connected ) )
 				return false;
 		}
 
@@ -196,10 +178,57 @@ class P2P_Directed_Connection_Type {
 	 * @param int The post id.
 	 */
 	public function disconnect_all( $from ) {
-		$connected = $this->get_connected( $from );
+		foreach ( P2P_Util::expand_direction( $this->direction ) as $dir ) {
+			p2p_delete_connections( $this->name, array( $dir => $from ) );
+		}
+	}
 
-		foreach ( $connected->posts as $post )
-			p2p_delete_connection( $post->p2p_id );
+	protected function check_against( $post_id ) {
+		if ( 'one' == $this->get_current( 'cardinality' ) ) {
+			return 'any';
+		} elseif ( $this->prevent_duplicates ) {
+			return $post_id;
+		} else {
+			return false;
+		}
+	}
+
+	public function cardinality_check( $post_id ) {
+		$against = $this->check_against( $post_id );
+
+		if ( !$against )
+			return false;
+
+		$to_check = array();
+
+		foreach ( P2P_Util::expand_direction( $this->direction ) as $direction ) {
+			$to_check = array_merge( $to_check, p2p_get_connections( $this->name, array(
+				$direction => $to_check,
+				'fields' => ( 'to' == $direction ) ? 'p2p_from' : 'p2p_to'
+			) ) );
+		}
+
+		return $to_check;
+	}
+
+	public function get_p2p_id( $from, $to ) {
+		foreach ( P2P_Util::expand_direction( $this->direction ) as $direction ) {
+			$args = array( $from, $to );
+			if ( 'to' == $direction ) {
+				$args = array_reverse( $args );
+			}
+
+			$ids = p2p_get_connections( $this->name, array(
+				'from' => $args[0],
+				'to' => $args[1],
+				'fields' => 'p2p_id'
+			) );
+
+			if ( !empty( $ids ) )
+				return reset( $ids );
+		}
+
+		return false;
 	}
 }
 
