@@ -115,25 +115,54 @@ function p2p_type( $p2p_type ) {
  * @param string $p2p_type A valid connection type.
  * @param array $args Query args.
  *
- * @return bool|array False on failure, list of connection objects on success.
+ * @return array
  */
 function p2p_get_connections( $p2p_type, $args = array() ) {
-	global $wpdb;
-
 	extract( wp_parse_args( $args, array(
+		'direction' => 'from',
 		'from' => 'any',
 		'to' => 'any',
 		'fields' => 'all',
 	) ), EXTR_SKIP );
 
+	$r = array();
+
+	foreach ( P2P_Util::expand_direction( $direction ) as $direction ) {
+		$args = array( $from, $to );
+
+		if ( 'to' == $direction ) {
+			$args = array_reverse( $args );
+		}
+
+		if ( 'object_id' == $fields )
+			$field = ( 'to' == $direction ) ? 'p2p_from' : 'p2p_to';
+		else
+			$field = $fields;
+
+		$r = array_merge( $r, _p2p_get_connections( $p2p_type, array(
+			'from' => $args[0],
+			'to' => $args[1],
+			'fields' => $field
+		) ) );
+	}
+
+	return $r;
+}
+
+/**
+ * @internal
+ */
+function _p2p_get_connections( $p2p_type, $args = array() ) {
+	global $wpdb;
+
+	extract( $args, EXTR_SKIP );
+
 	$where = $wpdb->prepare( 'WHERE p2p_type = %s', $p2p_type );
 
-	$direction = array();
 	foreach ( array( 'from', 'to' ) as $key ) {
 		if ( 'any' == $$key )
 			continue;
 
-		$direction[] = $key;
 		$where .= $wpdb->prepare( " AND p2p_$key = %d", $$key );
 	}
 
@@ -238,20 +267,20 @@ function p2p_delete_connection( $p2p_id ) {
 	return $count;
 }
 
-function p2p_get_meta( $p2p_id, $key, $single = false ) {
+function p2p_get_meta( $p2p_id, $key = '', $single = false ) {
 	return get_metadata( 'p2p', $p2p_id, $key, $single );
 }
 
-function p2p_update_meta( $p2p_id, $meta_key, $meta_value, $prev_value = '' ) {
-	return update_metadata( 'p2p', $p2p_id, $meta_key, $meta_value, $prev_value );
+function p2p_update_meta( $p2p_id, $key, $value, $prev_value = '' ) {
+	return update_metadata( 'p2p', $p2p_id, $key, $value, $prev_value );
 }
 
-function p2p_add_meta( $p2p_id, $meta_key, $meta_value, $unique = false ) {
-	return add_metadata( 'p2p', $p2p_id, $meta_key, $meta_value, $unique );
+function p2p_add_meta( $p2p_id, $key, $value, $unique = false ) {
+	return add_metadata( 'p2p', $p2p_id, $key, $value, $unique );
 }
 
-function p2p_delete_meta( $p2p_id, $meta_key, $meta_value = '' ) {
-	return delete_metadata( 'p2p', $p2p_id, $meta_key, $meta_value );
+function p2p_delete_meta( $p2p_id, $key, $value = '' ) {
+	return delete_metadata( 'p2p', $p2p_id, $key, $value );
 }
 
 /**

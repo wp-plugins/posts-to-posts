@@ -12,14 +12,15 @@ abstract class P2P_Side {
 		}
 	}
 
-	abstract function get_title();
-	abstract function get_labels();
-
-	abstract function check_capability();
+	function get_base_qv() {
+		return $this->query_vars;
+	}
 }
 
 
 class P2P_Side_Post extends P2P_Side {
+
+	public $post_type = array();
 
 	function __construct( $args ) {
 		parent::__construct( $args );
@@ -27,8 +28,10 @@ class P2P_Side_Post extends P2P_Side {
 		$this->post_type = array_values( array_filter( $this->post_type, 'post_type_exists' ) );
 		if ( empty( $this->post_type ) )
 			$this->post_type = array( 'post' );
+	}
 
-		$this->query_vars = array_merge( $this->query_vars, array(
+	function get_base_qv() {
+		return array_merge( $this->query_vars, array(
 			'post_type' => $this->post_type,
 			'suppress_filters' => false,
 			'ignore_sticky_posts' => true,
@@ -47,7 +50,7 @@ class P2P_Side_Post extends P2P_Side {
 		return current_user_can( $this->get_ptype()->cap->edit_posts );
 	}
 
-	public function get_connected( $args ) {
+	function do_query( $args ) {
 		return new WP_Query( $args );
 	}
 
@@ -57,7 +60,7 @@ class P2P_Side_Post extends P2P_Side {
 		'post_status' => 'any',
 	);
 
-	public function get_connections( $directed, $item_id ) {
+	function get_connections( $directed, $item_id ) {
 		$qv = array_merge( self::$admin_box_qv, array(
 			'nopaging' => true
 		) );
@@ -67,8 +70,8 @@ class P2P_Side_Post extends P2P_Side {
 		return scb_list_fold( $query->posts, 'p2p_id', 'ID' );
 	}
 
-	public function get_connectable( $directed, $item_id, $page = 1, $search = '' ) {
-		$qv = array_merge( $this->query_vars, self::$admin_box_qv, array(
+	function get_connectable( $item_id, $page, $search, $to_exclude, $directed ) {
+		$qv = array_merge( $this->get_base_qv(), self::$admin_box_qv, array(
 			'posts_per_page' => ADMIN_BOX_PER_PAGE,
 			'paged' => $page,
 		) );
@@ -78,10 +81,7 @@ class P2P_Side_Post extends P2P_Side {
 			$qv['s'] = $search;
 		}
 
-		$to_check = $directed->cardinality_check( $item_id );
-		if ( !empty( $to_check ) ) {
-			$qv['post__not_in'] = $to_check;
-		}
+		$qv['post__not_in'] = $to_exclude;
 
 		$qv = apply_filters( 'p2p_connectable_args', $qv, $directed, $item_id );
 
@@ -92,6 +92,10 @@ class P2P_Side_Post extends P2P_Side {
 			'current_page' => max( 1, $query->get('paged') ),
 			'total_pages' => $query->max_num_pages
 		);
+	}
+
+	function item_exists( $item_id ) {
+		return (bool) get_post( $item_id );
 	}
 
 	private function get_ptype() {
@@ -118,17 +122,17 @@ class P2P_Side_User extends P2P_Side {
 		return current_user_can( 'list_users' );
 	}
 
-	public function get_connected( $args ) {
+	function do_query( $args ) {
 		return new WP_User_Query( $args );
 	}
 
-	public function get_connections( $directed, $item_id ) {
+	function get_connections( $directed, $item_id ) {
 		$query = $directed->get_connected( $item_id );
 
 		return scb_list_fold( $query->results, 'p2p_id', 'ID' );
 	}
 
-	public function get_connectable( $directed, $item_id, $page = 1, $search = '' ) {
+	function get_connectable( $item_id, $page, $search, $to_exclude, $directed ) {
 		$qv = array(
 			'number' => ADMIN_BOX_PER_PAGE,
 			'offset' => ADMIN_BOX_PER_PAGE * ( $page - 1 )
@@ -138,10 +142,7 @@ class P2P_Side_User extends P2P_Side {
 			$qv['search'] = '*' . $search . '*';
 		}
 
-		$to_check = $directed->cardinality_check( $item_id );
-		if ( !empty( $to_check ) ) {
-			$qv['exclude'] = $to_check;
-		}
+		$qv['exclude'] = $to_exclude;
 
 		$qv = apply_filters( 'p2p_connectable_args', $qv, $directed, $item_id );
 
@@ -152,6 +153,10 @@ class P2P_Side_User extends P2P_Side {
 			'current_page' => $page,
 			'total_pages' => ceil( $query->get_total() / ADMIN_BOX_PER_PAGE )
 		);
+	}
+
+	function item_exists( $item_id ) {
+		return (bool) get_user_by( 'id', $item_id );
 	}
 }
 
