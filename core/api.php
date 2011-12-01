@@ -27,6 +27,10 @@
  *
  * - 'title' - string|array The box's title. Default: 'Connected {$post_type}s'
  *
+ * - 'from_labels' - array Additional labels for the admin box (optional)
+ *
+ * - 'to_labels' - array Additional labels for the admin box (optional)
+ *
  * - 'reciprocal' - bool For indeterminate connections: True means all connections are displayed in a single box. False means 'from' connections are shown in one box and 'to' connections are shown in another box. Default: false.
  *
  * - 'admin_box' - bool|string|array Whether and where to show the admin connections box.
@@ -110,6 +114,22 @@ function p2p_type( $p2p_type ) {
 }
 
 /**
+ * Check if a certain connection exists.
+ *
+ * @param string $p2p_type A valid connection type.
+ * @param array $args Query args.
+ *
+ * @return bool
+ */
+function p2p_connection_exists( $p2p_type, $args = array() ) {
+	$args['fields'] = 'count';
+
+	$r = p2p_get_connections( $p2p_type, $args );
+
+	return (bool) $r;
+}
+
+/**
  * Retrieve connections.
  *
  * @param string $p2p_type A valid connection type.
@@ -146,6 +166,9 @@ function p2p_get_connections( $p2p_type, $args = array() ) {
 		) ) );
 	}
 
+	if ( 'count' == $fields )
+		return array_sum( $r );
+
 	return $r;
 }
 
@@ -171,6 +194,9 @@ function _p2p_get_connections( $p2p_type, $args = array() ) {
 	case 'p2p_from':
 	case 'p2p_to':
 		$sql_field = $fields;
+		break;
+	case 'count':
+		$sql_field = 'COUNT(*)';
 		break;
 	default:
 		$sql_field = '*';
