@@ -189,18 +189,19 @@ abstract class scbAdminPage {
 				$value = __( 'Save Changes', $this->textdomain );
 		}
 
-		$input_args = array( 'type' => 'submit',
-			'names' => $action,
-			'values' => $value,
+		$input_args = array(
+			'type' => 'submit',
+			'name' => $action,
+			'value' => $value,
 			'extra' => '',
-			'desc' => false );
+			'desc' => false,
+			'wrap' => html( 'p class="submit"', scbForms::TOKEN )
+		);
 
 		if ( ! empty( $class ) )
-			$input_args['extra'] = "class='{$class}'";
+			$input_args['extra'] = compact( 'class' );
 
-		$output = "<p class='submit'>\n" . scbForms::input( $input_args ) . "</p>\n";
-
-		return $output;
+		return scbForms::input( $input_args );
 	}
 
 	/*
