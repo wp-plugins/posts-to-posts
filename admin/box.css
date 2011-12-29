@@ -125,6 +125,13 @@ td.p2p-col-create {
 	background: url("images/delete.png") no-repeat scroll 50% 50% transparent;
 }
 
+.p2p-col-title img {
+	display: block;
+	margin: 2px 0;
+	max-height: 32px;
+	max-width: 40px;
+}
+
 td.p2p-col-order {
 	width: 13px;
 }

@@ -48,32 +48,16 @@ function p2p_register_connection_type( $args ) {
 
 	$argv = func_get_args();
 
-	// Back-compat begin
-	if ( count( $argv ) > 1 ) {
-		$args = array();
-		foreach ( array( 'from', 'to', 'reciprocal' ) as $i => $key ) {
-			if ( isset( $argv[ $i ] ) )
-				$args[ $key ] = $argv[ $i ];
+	$args = _p2p_back_compat_args( $argv );
+
+	if ( isset( $args['name'] ) ) {
+		if ( strlen( $args['name'] ) > 32 ) {
+			trigger_error( sprintf( "Connection name '%s' is longer than 32 characters.", $args['name'] ), E_USER_WARNING );
+			return false;
 		}
+	} else {
+		trigger_error( "Connection types without a 'name' parameter are deprecated.", E_USER_WARNING );
 	}
-
-	if ( isset( $args['id'] ) ) {
-		$args['name'] = _p2p_pluck( $args, 'id' );
-	}
-
-	if ( isset( $args['name'] ) && strlen( $args['name'] ) > 32 ) {
-		trigger_error( sprintf( "Connection name '%s' is longer than 32 characters.", $args['name'] ), E_USER_WARNING );
-		return false;
-	}
-
-	if ( isset( $args['show_ui'] ) ) {
-		$args['admin_box'] = array(
-			'show' => _p2p_pluck( $args, 'show_ui' )
-		);
-		if ( isset( $args['context'] ) )
-			$args['admin_box']['context'] = _p2p_pluck( $args, 'context' );
-	}
-	// Back-compat end
 
 	// Box args
 	if ( isset( $args['admin_box'] ) ) {
@@ -105,6 +89,34 @@ function p2p_register_connection_type( $args ) {
 	}
 
 	return $ctype;
+}
+
+/** @internal */
+function _p2p_back_compat_args( $argv ) {
+	if ( count( $argv ) > 1 ) {
+		$args = array();
+		foreach ( array( 'from', 'to', 'reciprocal' ) as $i => $key ) {
+			if ( isset( $argv[ $i ] ) )
+				$args[ $key ] = $argv[ $i ];
+		}
+	} else {
+		$args = $argv[0];
+	}
+
+	if ( isset( $args['id'] ) ) {
+		$args['name'] = _p2p_pluck( $args, 'id' );
+	}
+
+	if ( isset( $args['show_ui'] ) ) {
+		$args['admin_box'] = array(
+			'show' => _p2p_pluck( $args, 'show_ui' )
+		);
+
+		if ( isset( $args['context'] ) )
+			$args['admin_box']['context'] = _p2p_pluck( $args, 'context' );
+	}
+
+	return $args;
 }
 
 /**

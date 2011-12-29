@@ -5,7 +5,7 @@
  */
 interface P2P_Field {
 	function get_title();
-	function render( $key, $p2p_id, $post_id );
+	function render( $p2p_id, $post_id );
 }
 
 /**
@@ -44,8 +44,7 @@ class P2P_Box {
 	}
 
 	protected function init_columns() {
-		$object_type = $this->ctype->get_opposite( 'object' );
-		$title_class = 'P2P_Field_Title_' . ucfirst( $object_type );
+		$title_class = $this->get_column_title_class();
 
 		$this->columns = array(
 			'delete' => new P2P_Field_Delete,
@@ -53,12 +52,18 @@ class P2P_Box {
 		);
 
 		foreach ( $this->args->fields as $key => $data ) {
-			$this->columns[ $key ] = new P2P_Field_Generic( $data );
+			$this->columns[ 'meta-' . $key ] = new P2P_Field_Generic( $key, $data );
 		}
 
 		if ( $orderby_key = $this->ctype->get_orderby_key() ) {
 			$this->columns['order'] = new P2P_Field_Order( $orderby_key );
 		}
+	}
+
+	protected function get_column_title_class() {
+		$object_type = $this->ctype->get_opposite( 'object' );
+
+		return 'P2P_Field_Title_' . ucfirst( $object_type );
 	}
 
 	function render( $post ) {
@@ -163,7 +168,7 @@ class P2P_Box {
 		foreach ( $columns as $key => $field ) {
 			$data['columns'][] = array(
 				'column' => $key,
-				'content' => $field->render( $key, $p2p_id, $post_id )
+				'content' => $field->render( $p2p_id, $post_id )
 			);
 		}
 
