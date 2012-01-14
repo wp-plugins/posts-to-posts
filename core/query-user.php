@@ -11,7 +11,14 @@ class P2P_User_Query {
 
 		$q =& $query->query_vars;
 
-		if ( false === P2P_Query::handle_qv( $q, 'user' ) ) {
+		P2P_Query::expand_shortcut_qv( $q );
+
+		if ( !isset( $q['connected_items'] ) )
+			return;
+
+		$r = self::expand_connected_type( $q );
+
+		if ( false === $r ) {
 			$query->query_where = " AND 1=0";
 			return;
 		}
@@ -42,6 +49,34 @@ class P2P_User_Query {
 
 		foreach ( $map as $clause => $key )
 			$query->$key = $clauses[$clause];
+	}
+
+	// null means do nothing
+	// false means trigger 404
+	// true means found valid p2p query vars
+	function expand_connected_type( &$q ) {
+		if ( !isset( $q['connected_type'] ) )
+			return;
+
+		$ctype = p2p_type( _p2p_pluck( $q, 'connected_type' ) );
+
+		if ( !$ctype )
+			return false;
+
+		if ( isset( $q['connected_direction'] ) )
+			$directed = $ctype->set_direction( _p2p_pluck( $q, 'connected_direction' ) );
+		else {
+			$directed = P2P_Query::find_direction( $ctype, $q['connected_items'], 'user' );
+		}
+
+		if ( !$directed ) {
+			trigger_error( "Can't determine direction", E_USER_WARNING );
+			return false;
+		}
+
+		$q = $directed->get_connected_args( $q );
+
+		return true;
 	}
 }
 

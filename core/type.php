@@ -113,17 +113,9 @@ class Generic_Connection_Type {
 	 *
 	 * @return bool|object|string False on failure, P2P_Directed_Connection_Type instance or direction on success.
 	 */
-	public function find_direction( $arg, $instantiate = true, $object_type = false ) {
-		if ( $direction = $this->find_direction_from_object_type( $object_type ) )
-			return $this->set_direction( $direction, $instantiate );
-
-		$post_type = P2P_Util::find_post_type( $arg );
-
+	public function find_direction( $arg, $instantiate = true ) {
 		foreach ( array( 'from', 'to' ) as $direction ) {
-			if ( 'post' != $this->object[ $direction ] )
-				continue;
-
-			if ( !in_array( $post_type, $this->side[ $direction ]->post_type ) )
+			if ( !$this->side[ $direction ]->recognize_item( $arg ) )
 				continue;
 
 			if ( $this->indeterminate )
@@ -133,21 +125,6 @@ class Generic_Connection_Type {
 		}
 
 		return false;
-	}
-
-	protected function find_direction_from_object_type( $object_type ) {
-		if ( !$object_type )
-			return false;
-
-		$opposite_side = P2P_Util::choose_side( $object_type,
-			$this->object['from'],
-			$this->object['to']
-		);
-
-		if ( !$opposite_side || 'any' == $opposite_side )
-			return false;
-
-		return $opposite_side;
 	}
 }
 
@@ -175,8 +152,9 @@ class P2P_Connection_Type extends Generic_Connection_Type {
 	 *
 	 * @param object $query WP_Query instance.
 	 * @param string|array $extra_qv Additional query vars for the inner query.
+	 * @param string $prop_name The name of the property used to store the list of connected items on each post object.
 	 */
-	public function each_connected( $query, $extra_qv = array() ) {
+	public function each_connected( $query, $extra_qv = array(), $prop_name = 'connected' ) {
 		if ( empty( $query->posts ) || !is_object( $query->posts[0] ) )
 			return;
 
@@ -187,8 +165,6 @@ class P2P_Connection_Type extends Generic_Connection_Type {
 		$directed = $this->find_direction( $post_type );
 		if ( !$directed )
 			return false;
-
-		$prop_name = 'connected';
 
 		$posts = array();
 

@@ -2,42 +2,7 @@
 
 class P2P_Query {
 
-	// null means do nothing
-	// false means trigger 404
-	// true means found valid p2p query vars
-	function handle_qv( &$q, $object_type ) {
-		self::expand_shortcut_qv( $q );
-
-		if ( !isset( $q['connected_items'] ) )
-			return;
-
-		if ( isset( $q['connected_type'] ) )
-			return self::expand_connected_type( $q, $object_type );
-	}
-
-	protected function expand_connected_type( &$q, $object_type ) {
-		$ctype = p2p_type( _p2p_pluck( $q, 'connected_type' ) );
-
-		if ( !$ctype )
-			return false;
-
-		if ( isset( $q['connected_direction'] ) )
-			$directed = $ctype->set_direction( _p2p_pluck( $q, 'connected_direction' ) );
-		else {
-			$directed = $ctype->find_direction( $q['connected_items'], true, $object_type );
-		}
-
-		if ( !$directed ) {
-			trigger_error( "Can't determine direction", E_USER_WARNING );
-			return false;
-		}
-
-		$q = $directed->get_connected_args( $q );
-
-		return true;
-	}
-
-	protected function expand_shortcut_qv( &$q ) {
+	function expand_shortcut_qv( &$q ) {
 		$qv_map = array(
 			'connected' => 'any',
 			'connected_to' => 'to',
@@ -138,6 +103,31 @@ class P2P_Query {
 		}
 
 		return $clauses;
+	}
+
+	function find_direction( $ctype, $arg, $object_type ) {
+		$opposite_side = self::choose_side( $object_type,
+			$ctype->object['from'],
+			$ctype->object['to']
+		);
+
+		if ( in_array( $opposite_side, array( 'from', 'to' ) ) )
+			return $ctype->set_direction( $opposite_side );
+
+		return $ctype->find_direction( $arg );
+	}
+
+	private static function choose_side( $current, $from, $to ) {
+		if ( $from == $to && $current == $from )
+			return 'any';
+
+		if ( $current == $from )
+			return 'to';
+
+		if ( $current == $to )
+			return 'from';
+
+		return false;
 	}
 }
 
