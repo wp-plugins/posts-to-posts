@@ -119,7 +119,7 @@ class Generic_Connection_Type {
 	 */
 	public function find_direction( $arg, $instantiate = true ) {
 		foreach ( array( 'from', 'to' ) as $direction ) {
-			if ( !$this->side[ $direction ]->recognize_item( $arg ) )
+			if ( !$this->side[ $direction ]->item_recognize( $arg ) )
 				continue;
 
 			if ( $this->indeterminate )
@@ -176,11 +176,6 @@ class Generic_Connection_Type {
 				$outer_item_id = $inner_item->p2p_from;
 			} else {
 				trigger_error( "Corrupted data for item $inner_item->ID", E_USER_WARNING );
-				continue;
-			}
-
-			if ( $outer_item_id == $inner_item->ID ) {
-				trigger_error( 'Item connected to itself.', E_USER_WARNING );
 				continue;
 			}
 
