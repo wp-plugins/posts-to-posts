@@ -1,6 +1,6 @@
 <?php
 
-$GLOBALS['_scb_data'] = array( 47, __FILE__, array(
+$GLOBALS['_scb_data'] = array( 50, __FILE__, array(
 	'scbUtil', 'scbOptions', 'scbForms', 'scbTable',
 	'scbWidget', 'scbAdminPage', 'scbBoxesPage',
 	'scbCron', 'scbHooks',
@@ -9,7 +9,7 @@ $GLOBALS['_scb_data'] = array( 47, __FILE__, array(
 if ( !class_exists( 'scbLoad4' ) ) :
 class scbLoad4 {
 
-	private static $candidates;
+	private static $candidates = array();
 	private static $classes;
 	private static $callbacks = array();
 
