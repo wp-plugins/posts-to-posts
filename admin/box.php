@@ -124,6 +124,7 @@ class P2P_Box {
 		// Search tab
 		$tab_content = P2P_Mustache::render( 'tab-search', array(
 			'placeholder' => $this->labels->search_items,
+			'view-all' => __( 'View All', P2P_TEXTDOMAIN ),
 		) );
 
 		$data['tabs'][] = array(
@@ -131,13 +132,6 @@ class P2P_Box {
 			'tab-title' => __( 'Search', P2P_TEXTDOMAIN ),
 			'is-active' => array(true),
 			'tab-content' => $tab_content
-		);
-
-		// List tab
-		$data['tabs'][] = array(
-			'tab-id' => 'list',
-			'tab-title' => __( 'View All', P2P_TEXTDOMAIN ),
-			'tab-content' => $this->post_rows( $post->ID )
 		);
 
 		// Create post tab
@@ -152,6 +146,8 @@ class P2P_Box {
 				'tab-content' => $tab_content
 			);
 		}
+
+		$data['show-tab-headers'] = count( $data['tabs'] ) > 1 ? array(true) : false;
 
 		return $data;
 	}
@@ -269,17 +265,7 @@ class P2P_Box {
 	}
 
 	private function refresh_candidates() {
-		$results = array();
-
-		foreach ( array( 'search', 'all' ) as $key ) {
-			$args = $_POST[ $key ];
-			$args['from'] = $_POST['from'];
-
-			if ( 'search' == $key && empty( $args['s'] ) )
-				$results[ $key ] = array();
-			else
-				$results[ $key ] = $this->_ajax_search( $args );
-		}
+		$results = $this->_ajax_search( $_POST );
 
 		die( json_encode( $results ) );
 	}
