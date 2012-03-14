@@ -19,8 +19,7 @@ Additionally, you can create many-to-many relationships between posts and users.
 
 * favorite posts of users
 * multiple authors per post
-
-etc.
+* etc.
 
 Links: [**Documentation**](http://github.com/scribu/wp-posts-to-posts/wiki) | [Plugin News](http://scribu.net/wordpress/posts-to-posts) | [Author's Site](http://scribu.net)
 
@@ -50,12 +49,16 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 
 == Changelog ==
 
+= 1.1.7 =
+* fix migration script
+
 = 1.1.6 =
-* converted "View All" tab into button
+* convert "View All" tab into button
 * refresh candidate list after deleting a connection
-* fixed cardinality check
-* introduced 'p2p_connection_type_args' filter
+* fix cardinality check
+* introduce 'p2p_connection_type_args' filter
 * make 'connected_type' accept an array of connection type names
+* inadvertently remove support for queries without 'connected_type' parameter
 
 = 1.1.5 =
 * added P2P_Connection_Type->replace() method
