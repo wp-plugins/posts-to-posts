@@ -15,9 +15,24 @@ class P2P_Query {
 				$q['connected_direction'] = $direction;
 			}
 		}
+
+		if ( !isset( $q['connected_type'] ) ) {
+			if ( isset( $q['connected_items'] ) ) {
+				trigger_error( "P2P queries without 'connected_type' are no longer supported." );
+			}
+			return false;
+		}
+
+		if ( !isset( $q['connected_items'] ) )
+			$q['connected_items'] = 'any';
+
+		return true;
 	}
 
 	function get_qv( $q ) {
+		if ( !isset( $q['p2p_type'] ) )
+			return false;
+
 		$qv_list = array(
 			'items', 'direction', 'meta',
 			'orderby', 'order_num', 'order'
@@ -27,14 +42,17 @@ class P2P_Query {
 			$qv[$key] = isset( $q["connected_$key"] ) ?  $q["connected_$key"] : false;
 		}
 
-		$qv['p2p_type'] = isset( $q['p2p_type'] ) ? $q['p2p_type'] : false;
-
 		return $qv;
 	}
 
-	// null means do nothing
-	// false means trigger 404
-	// true means found valid p2p query vars
+	/**
+	 * Sets 'p2p_type' => array( connection_type => direction )
+	 *
+	 * @return:
+	 * null means ignore current query
+	 * false means trigger 404
+	 * true means proceed
+	 */
 	function expand_connected_type( &$q, $item, $object_type ) {
 		if ( !isset( $q['connected_type'] ) )
 			return;
