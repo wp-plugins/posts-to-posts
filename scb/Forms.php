@@ -239,7 +239,7 @@ class scbForms {
 
 	private static function _select( $args ) {
 		extract( wp_parse_args( $args, array(
-			'text' => '',
+			'text' => false,
 			'extra' => array()
 		) ) );
 
@@ -254,9 +254,6 @@ class scbForms {
 		}
 
 		foreach ( $values as $value => $title ) {
-			if ( empty( $value ) || empty( $title ) )
-				continue;
-
 			$options[] = array(
 				'value' => $value,
 				'selected' => ( (string) $value == (string) $selected ),
