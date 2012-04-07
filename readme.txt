@@ -3,7 +3,7 @@ Contributors: scribu, ciobi
 Tags: connections, custom post types, relationships, many-to-many, users
 Requires at least: 3.2
 Tested up to: 3.3
-Stable tag: 1.1.6
+Stable tag: 1.2
 
 Efficient many-to-many connections between posts, pages, custom post types, users.
 
@@ -46,12 +46,19 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 2. Advanced connection metabox
 3. Admin column
 4. Widget
+5. Connection Types screen
 
 == Changelog ==
 
 = 1.2 =
-* add Tools -> Connection Types admin screen
-* fix migration script
+* added Tools -> Connection Types admin screen
+* fixed migration script
+* made p2p_get_connections() accept arrays of ids
+* added 'separator' parameter to p2p_list_posts()
+* made P2P_Directed_Type->connect() return WP_Error instances instead of just false
+* when a user is deleted, delete all the associated connections
+* fixed conflict with bbPress Topics for Posts plugin
+* [more info](http://scribu.net/wordpress/posts-to-posts/p2p-1-2.html)
 
 = 1.1.6 =
 * convert "View All" tab into button
