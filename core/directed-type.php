@@ -49,16 +49,16 @@ class P2P_Directed_Connection_Type {
 	}
 
 	/**
-	 * Get a list of posts that are connected to a given post.
+	 * Get a list of items that are connected to a given item.
 	 *
-	 * @param int|array $post_id A post id or an array of post ids.
+	 * @param mixed $item An object, an object id or an array of such.
 	 * @param array $extra_qv Additional query variables to use.
 	 *
 	 * @return object
 	 */
-	public function get_connected( $post_id, $extra_qv = array(), $output = 'raw' ) {
+	public function get_connected( $item, $extra_qv = array(), $output = 'raw' ) {
 		$args = array_merge( $extra_qv, array(
-			'connected_items' => $post_id
+			'connected_items' => $item
 		) );
 
 		$side = $this->get_opposite( 'side' );
@@ -72,6 +72,10 @@ class P2P_Directed_Connection_Type {
 	}
 
 	public function get_connected_args( $q ) {
+		$q = wp_parse_args( $q, array(
+			'p2p:context' => false
+		) );
+
 		if ( $orderby_key = $this->get_orderby_key() ) {
 			$q = wp_parse_args( $q, array(
 				'connected_orderby' => $orderby_key,
@@ -106,16 +110,18 @@ class P2P_Directed_Connection_Type {
 	}
 
 	/**
-	 * Get a list of posts that could be connected to a given post.
+	 * Get a list of items that could be connected to a given item.
 	 *
 	 * @param int $post_id A post id.
 	 */
-	public function get_connectable( $item_id, $page, $search ) {
+	public function get_connectable( $item_id, $extra_qv = array() ) {
 		$side = $this->get_opposite( 'side' );
 
-		$qv = $side->get_connectable_qv( $item_id, $page, $search, $this->get_non_connectable( $item_id ) );
+		$extra_qv['p2p:exclude'] = $this->get_non_connectable( $item_id );
 
-		$qv = apply_filters( 'p2p_connectable_args', $qv, $this, $item_id );
+		$extra_qv = array_merge( $side->get_base_qv(), $side->translate_qv( $extra_qv ) );
+
+		$qv = apply_filters( 'p2p_connectable_args', $extra_qv, $this, $item_id );
 
 		return $side->abstract_query( $side->do_query( $qv ) );
 	}
@@ -145,17 +151,19 @@ class P2P_Directed_Connection_Type {
 	/**
 	 * Connect two items.
 	 *
-	 * @param int The first end of the connection.
-	 * @param int The second end of the connection.
+	 * @param mixed The first end of the connection.
+	 * @param mixed The second end of the connection.
 	 * @param array Additional information about the connection.
 	 *
 	 * @return int|object p2p_id or WP_Error on failure
 	 */
 	public function connect( $from, $to, $meta = array() ) {
-		if ( !$this->get_current( 'side' )->item_exists( $from ) )
+		$from = $this->get_current( 'side' )->item_id( $from );
+		if ( !$from )
 			return new WP_Error( 'first_parameter', 'Invalid first parameter.' );
 
-		if ( !$this->get_opposite( 'side' )->item_exists( $to ) )
+		$to = $this->get_opposite( 'side' )->item_id( $to );
+		if ( !$to )
 			return new WP_Error( 'second_parameter', 'Invalid second parameter.' );
 
 		if ( !$this->self_connections && $from == $to )
@@ -178,22 +186,25 @@ class P2P_Directed_Connection_Type {
 	}
 
 	/**
-	 * Disconnect two posts.
+	 * Disconnect two items.
 	 *
-	 * @param int The first end of the connection.
-	 * @param int The second end of the connection.
+	 * @param mixed The first end of the connection.
+	 * @param mixed The second end of the connection or 'any'.
+	 *
+	 * @return int|object count or WP_Error on failure
 	 */
 	public function disconnect( $from, $to ) {
-		return $this->delete_connections( compact( 'from', 'to' ) );
-	}
+		$from = $this->get_current( 'side' )->item_id( $from );
+		if ( !$from )
+			return new WP_Error( 'first_parameter', 'Invalid first parameter.' );
 
-	/**
-	 * Delete all connections for a certain post.
-	 *
-	 * @param int The post id.
-	 */
-	public function disconnect_all( $from ) {
-		return $this->delete_connections( compact( 'from' ) );
+		if ( 'any' != $to ) {
+			$to = $this->get_opposite( 'side' )->item_id( $to );
+			if ( !$to )
+				return new WP_Error( 'second_parameter', 'Invalid second parameter.' );
+		}
+
+		return $this->delete_connections( compact( 'from', 'to' ) );
 	}
 
 	public function get_p2p_id( $from, $to ) {

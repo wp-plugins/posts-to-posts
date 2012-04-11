@@ -4,7 +4,8 @@ class P2P_Widget extends scbWidget {
 
 	protected $defaults = array(
 		'ctype' => false,
-		'listing' => 'connected'
+		'listing' => 'connected',
+		'title' => ''
 	);
 
 	static function init() {
@@ -29,6 +30,12 @@ class P2P_Widget extends scbWidget {
 
 			$ctypes[ $p2p_type ] = $ctype->get_desc();
 		}
+
+		echo html( 'p', $this->input( array(
+			'type' => 'text',
+			'name' => 'title',
+			'desc' => __( 'Title:', P2P_TEXTDOMAIN )
+		), $instance ) );
 
 		echo html( 'p', $this->input( array(
 			'type' => 'select',
@@ -67,21 +74,18 @@ class P2P_Widget extends scbWidget {
 		if ( !$directed )
 			return;
 
+		$extra_qv = array( 'p2p:context' => 'widget' );
+
 		if ( 'related' == $instance['listing'] ) {
-			$connected = $ctype->get_related( $post_id );
-			$title = sprintf(
-				__( 'Related %s', P2P_TEXTDOMAIN ),
-				$directed->get_current( 'side' )->get_title()
-			);
+			$connected = $ctype->get_related( $post_id, $extra_qv );
 		} else {
-			$connected = $directed->get_connected( $post_id );
-			$title = $directed->get_current( 'title' );
+			$connected = $directed->get_connected( $post_id, $extra_qv );
 		}
 
 		if ( !$connected->have_posts() )
 			return;
 
-		$title = apply_filters( 'widget_title', $title, $instance, $this->id_base );
+		$title = apply_filters( 'widget_title', $instance['title'], $instance, $this->id_base );
 
 		extract( $args );
 
@@ -90,7 +94,10 @@ class P2P_Widget extends scbWidget {
 		if ( ! empty( $title ) )
 			echo $before_title . $title . $after_title;
 
-		p2p_list_posts( $connected );
+		p2p_list_posts( $connected, array(
+			'before_list' => '<ul id="'.$ctype->name.'_list">',
+			'template' => 'widget-p2p-' . $ctype->name . '.php'
+		) );
 
 		echo $after_widget;
 	}

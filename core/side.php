@@ -1,7 +1,5 @@
 <?php
 
-define( 'ADMIN_BOX_PER_PAGE', 5 );
-
 abstract class P2P_Side {
 
 	public $query_vars;
@@ -24,6 +22,10 @@ class P2P_Side_Post extends P2P_Side {
 		parent::__construct( $query_vars );
 
 		$this->post_type = $this->query_vars['post_type'];
+	}
+
+	private function get_ptype() {
+		return get_post_type_object( $this->post_type[0] );
 	}
 
 	function get_base_qv() {
@@ -67,48 +69,28 @@ class P2P_Side_Post extends P2P_Side {
 		);
 	}
 
-	private static $admin_box_qv = array(
-		'update_post_term_cache' => false,
-		'update_post_meta_cache' => false,
-		'post_status' => 'any',
-	);
+	function translate_qv( $qv ) {
+		$map = array(
+			'exclude' => 'post__not_in',
+			'search' => 's',
+			'page' => 'paged',
+			'per_page' => 'posts_per_page'
+		);
 
-	function get_connections_qv() {
-		return array_merge( self::$admin_box_qv, array(
-			'nopaging' => true
-		) );
-	}
-
-	function get_connectable_qv( $item_id, $page, $search, $to_exclude ) {
-		$qv = array_merge( $this->get_base_qv(), self::$admin_box_qv, array(
-			'posts_per_page' => ADMIN_BOX_PER_PAGE,
-			'paged' => $page,
-		) );
-
-		if ( $search ) {
-			$qv['s'] = $search;
-		}
-
-		$qv['post__not_in'] = $to_exclude;
+		foreach ( $map as $old => $new )
+			if ( isset( $qv["p2p:$old"] ) )
+				$qv[$new] = _p2p_pluck( $qv, "p2p:$old" );
 
 		return $qv;
 	}
 
-	/**
-	 * @param mixed A post type, a post id, a post object, an array of post ids or of objects.
-	 */
 	function item_recognize( $arg ) {
-		if ( is_array( $arg ) ) {
-			$arg = reset( $arg );
-		}
-
 		if ( is_object( $arg ) ) {
+			if ( !isset( $arg->post_type ) )
+				return false;
 			$post_type = $arg->post_type;
 		} elseif ( $post_id = (int) $arg ) {
-			$post = get_post( $post_id );
-			if ( !$post )
-				return false;
-			$post_type = $post->post_type;
+			$post_type = get_post_type( $post_id );
 		} else {
 			$post_type = $arg;
 		}
@@ -119,12 +101,12 @@ class P2P_Side_Post extends P2P_Side {
 		return in_array( $post_type, $this->post_type );
 	}
 
-	protected function get_ptype() {
-		return get_post_type_object( $this->post_type[0] );
-	}
+	function item_id( $arg ) {
+		$post = get_post( $arg );
+		if ( $post )
+			return $post->ID;
 
-	function item_exists( $item_id ) {
-		return (bool) get_post( $item_id );
+		return false;
 	}
 
 	function item_title( $item ) {
@@ -170,39 +152,51 @@ class P2P_Side_User extends P2P_Side {
 	}
 
 	function abstract_query( $query ) {
-		return (object) array(
-			'items' => $query->get_results(),
-			'current_page' => isset( $query->query_vars['_p2p_page'] ) ? $query->query_vars['_p2p_page'] : 1,
-			'total_pages' => ceil( $query->get_total() / ADMIN_BOX_PER_PAGE )
+		$qv = $query->query_vars;
+
+		$r = array(
+			'items' => $query->get_results()
 		);
-	}
 
-	function get_connections_qv() {
-		return array();
-	}
-
-	function get_connectable_qv( $item_id, $page, $search, $to_exclude ) {
-		$qv = array_merge( $this->get_base_qv(), array(
-			'number' => ADMIN_BOX_PER_PAGE,
-			'offset' => ADMIN_BOX_PER_PAGE * ( $page - 1 ),
-			'_p2p_page' => $page
-		) );
-
-		if ( $search ) {
-			$qv['search'] = '*' . $search . '*';
+		if ( isset( $qv['p2p:page'] ) ) {
+			$r['current_page'] = $qv['p2p:page'];
+			$r['total_pages'] = ceil( $query->get_total() / $qv['p2p:per_page'] );
+		} else {
+			$r['current_page'] = 1;
+			$r['total_pages'] = 0;
 		}
 
-		$qv['exclude'] = $to_exclude;
+		return (object) $r;
+	}
+
+	function translate_qv( $qv ) {
+		if ( isset( $qv['p2p:exclude'] ) )
+			$qv['exclude'] = _p2p_pluck( $qv, 'p2p:exclude' );
+
+		if ( isset( $qv['p2p:search'] ) && $qv['p2p:search'] )
+			$qv['search'] = '*' . _p2p_pluck( $qv, 'p2p:search' ) . '*';
+
+		if ( isset( $qv['p2p:page'] ) && $qv['p2p:page'] > 0 ) {
+			$qv['number'] = $qv['p2p:per_page'];
+			$qv['offset'] = $qv['p2p:per_page'] * ( $qv['p2p:page'] - 1 );
+		}
 
 		return $qv;
 	}
 
 	function item_recognize( $arg ) {
-		return false;
+		return is_a( $arg, 'WP_User' );
 	}
 
-	function item_exists( $item_id ) {
-		return (bool) get_user_by( 'id', $item_id );
+	function item_id( $arg ) {
+		if ( $this->item_recognize( $arg ) )
+			return $arg->ID;
+
+		$user = get_user_by( 'id', $arg );
+		if ( $user )
+			return $user->ID;
+
+		return false;
 	}
 
 	function item_title( $item ) {
