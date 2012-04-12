@@ -64,25 +64,27 @@ class P2P_Widget extends scbWidget {
 
 		$instance = array_merge( $this->defaults, $instance );
 
-		$post_id = get_queried_object_id();
+		$post = get_queried_object();
 
 		$ctype = p2p_type( $instance['ctype'] );
 		if ( !$ctype )
 			return;
 
-		$directed = $ctype->find_direction( $post_id );
+		$directed = $ctype->find_direction( $post );
 		if ( !$directed )
 			return;
 
 		$extra_qv = array( 'p2p:context' => 'widget' );
 
 		if ( 'related' == $instance['listing'] ) {
-			$connected = $ctype->get_related( $post_id, $extra_qv );
+			$method = 'get_related';
 		} else {
-			$connected = $directed->get_connected( $post_id, $extra_qv );
+			$method = 'get_connected';
 		}
 
-		if ( !$connected->have_posts() )
+		$connected = $directed->$method( $post, $extra_qv, 'abstract' );
+
+		if ( empty( $connected->items ) )
 			return;
 
 		$title = apply_filters( 'widget_title', $instance['title'], $instance, $this->id_base );
@@ -94,8 +96,8 @@ class P2P_Widget extends scbWidget {
 		if ( ! empty( $title ) )
 			echo $before_title . $title . $after_title;
 
-		p2p_list_posts( $connected, array(
-			'before_list' => '<ul id="'.$ctype->name.'_list">',
+		$connected->render( array(
+			'before_list' => '<ul id="' . $ctype->name . '_list">',
 			'template' => 'widget-p2p-' . $ctype->name . '.php'
 		) );
 

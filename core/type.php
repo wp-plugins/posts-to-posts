@@ -145,6 +145,30 @@ class P2P_Connection_Type {
 		return false;
 	}
 
+	// Used in each_connected()
+	private function find_direction_multiple( $post_types ) {
+		$possible_directions = array();
+
+		foreach ( array( 'from', 'to' ) as $direction ) {
+			if ( 'post' == $this->object[$direction] ) {
+				foreach ( $post_types as $post_type ) {
+					if ( !$this->side[ $direction ]->item_recognize( $post_type ) ) {
+						$possible_directions[] = $direction;
+						break;
+					}
+				}
+			}
+		}
+
+		if ( empty( $possible_directions ) )
+			return false;
+
+		if ( count( $possible_directions ) > 1 )
+			return 'any';
+
+		return reset( $possible_directions );
+	}
+
 	/** Alias for get_prev() */
 	public function get_previous( $from, $to ) {
 		return $this->get_prev( $from, $to );
@@ -214,33 +238,6 @@ class P2P_Connection_Type {
 	}
 
 	/**
-	 * Get a list of posts connected to other posts connected to a post.
-	 *
-	 * @param int|array $post_id A post id or array of post ids
-	 * @param array $extra_qv Additional query variables to use.
-	 *
-	 * @return bool|object False on failure; A WP_Query instance on success.
-	 */
-	public function get_related( $post_id, $extra_qv = array() ) {
-		$post_id = (array) $post_id;
-
-		$extra_qv['fields'] = 'ids';
-
-		$connected = $this->get_connected( $post_id, $extra_qv, 'abstract' );
-		if ( !$connected )
-			return false;
-
-		if ( empty( $connected->items ) )
-			return new WP_Query;
-
-		return new WP_Query( array(
-			'connected_type' => $this->name,
-			'connected_items' => $connected->items,
-			'post__not_in' => $post_id,
-		) );
-	}
-
-	/**
 	 * Optimized inner query, after the outer query was executed.
 	 *
 	 * Populates each of the outer querie's $post objects with a 'connected' property, containing a list of connected posts
@@ -254,12 +251,24 @@ class P2P_Connection_Type {
 			return;
 
 		$post_type = $query->get( 'post_type' );
-		if ( empty( $post_type ) )
-			$post_type = 'post';
 
-		$directed = $this->find_direction( $post_type );
-		if ( !$directed )
+		if ( !$post_type ) {
+			$post_type = 'post';
+		} elseif ( 'any' == $post_type ) {
+			$post_type = array_unique( wp_list_pluck( $query->posts, 'post_type' ) );
+		}
+
+		if ( is_array( $post_type ) ) {
+			$direction = $this->find_direction_multiple( $post_type );
+			$extra_qv['post_type'] = 'any';
+		} else {
+			$direction = $this->find_direction( $post_type, false );
+		}
+
+		if ( !$direction )
 			return false;
+
+		$directed = $this->set_direction( $direction );
 
 		$posts = array();
 
@@ -276,7 +285,7 @@ class P2P_Connection_Type {
 		}
 		$extra_qv['nopaging'] = true;
 
-		$q = $directed->get_connected( array_keys( $posts ), $extra_qv, 'abstract' );
+		$q = $directed->get_connected( $posts, $extra_qv, 'abstract' );
 
 		foreach ( $q->items as $inner_item ) {
 			if ( $inner_item->ID == $inner_item->p2p_from ) {
