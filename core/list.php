@@ -14,31 +14,30 @@ abstract class P2P_List {
 			'before_list' => '<ul>', 'after_list' => '</ul>',
 			'before_item' => '<li>', 'after_item' => '</li>',
 			'separator' => false,
-			'template' => false,
 			'echo' => true
 		) );
 
 		extract( $args, EXTR_SKIP );
+
+		if ( $separator ) {
+			if ( '<ul>' == $before_list )
+				$before_list = '';
+
+			if ( '</ul>' == $after_list )
+				$after_list = '';
+		}
 
 		if ( !$echo )
 			ob_start();
 
 		echo $before_list;
 
-		$i = 0;
-
-		foreach ( $this->items as $item ) {
-			if ( !$separator ) echo $before_item;
-
-			if ( !$template || !locate_template( $template, true, false ) ) {
-				if ( 0 < $i && $separator ) echo $separator;
-
-				echo $this->render_item( $item );
+		if ( $separator ) {
+			echo implode( $separator, array_map( array( $this, 'render_item' ), $this->items ) );
+		} else {
+			foreach ( $this->items as $item ) {
+				echo $before_item . $this->render_item( $item ) . $after_item;
 			}
-
-			if ( !$separator ) echo $after_item;
-
-			$i++;
 		}
 
 		echo $after_list;
@@ -63,26 +62,17 @@ class P2P_List_Post extends P2P_List {
 		}
 	}
 
-	function render( $args = array() ) {
-		$r = parent::render( $args );
-
-		wp_reset_postdata();
-
-		return $r;
-	}
-
 	protected function render_item( $post ) {
-		$GLOBALS['post'] = $post;
-
-		setup_postdata( $post );
-
-		return html( 'a', array( 'href' => get_permalink() ), get_the_title() );
+		return html( 'a', array( 'href' => get_permalink( $post ) ), get_the_title( $post ) );
 	}
 }
 
 
 class P2P_List_Attachment extends P2P_List_Post {
 
+	protected function render_item( $post ) {
+		return html( 'a', array( 'href' => get_permalink( $post ) ), wp_get_attachment_image( $post->ID, 'thumbnail', false ) );
+	}
 }
 
 
