@@ -1,36 +1,42 @@
 <?php
 
-abstract class P2P_Side {
+interface P2P_Side {
+	public function get_title();
+	public function get_desc();
+	public function get_labels();
 
-	public $query_vars;
+	public function can_edit_connections();
+	public function can_create_item();
+
+	public function get_base_qv( $q );
+	public function translate_qv( $qv );
+	public function do_query( $args );
+
+	public function is_indeterminate( $side );
+
+	public function item_recognize( $arg );
+	public function item_id( $arg );
+	public function item_title( $item );
+}
+
+
+class P2P_Side_Post implements P2P_Side {
 
 	function __construct( $query_vars ) {
 		$this->query_vars = $query_vars;
 	}
 
-	function get_base_qv( $q ) {
-		return array_merge( $this->query_vars, $q );
-	}
-}
-
-
-class P2P_Side_Post extends P2P_Side {
-
-	public $post_type = array();
-
-	function __construct( $query_vars ) {
-		parent::__construct( $query_vars );
-
-		$this->post_type = $this->query_vars['post_type'];
+	public function first_post_type() {
+		return $this->query_vars['post_type'][0];
 	}
 
 	private function get_ptype() {
-		return get_post_type_object( $this->post_type[0] );
+		return get_post_type_object( $this->first_post_type() );
 	}
 
 	function get_base_qv( $q ) {
 		if ( isset( $q['post_type'] ) && 'any' != $q['post_type'] ) {
-			$common = array_intersect( $this->post_type, (array) $q['post_type'] );
+			$common = array_intersect( $this->query_vars['post_type'], (array) $q['post_type'] );
 
 			if ( !$common )
 				unset( $q['post_type'] );
@@ -43,7 +49,7 @@ class P2P_Side_Post extends P2P_Side {
 	}
 
 	function get_desc() {
-		return implode( ', ', array_map( array( $this, 'post_type_label' ), $this->post_type ) );
+		return implode( ', ', array_map( array( $this, 'post_type_label' ), $this->query_vars['post_type'] ) );
 	}
 
 	private function post_type_label( $post_type ) {
@@ -59,8 +65,18 @@ class P2P_Side_Post extends P2P_Side {
 		return $this->get_ptype()->labels;
 	}
 
-	function check_capability() {
+	function can_edit_connections() {
 		return current_user_can( $this->get_ptype()->cap->edit_posts );
+	}
+
+	function can_create_item() {
+		if ( count( $this->query_vars['post_type'] ) > 1 )
+			return false;
+
+		if ( count( $this->query_vars ) > 1 )
+			return false;
+
+		return true;
 	}
 
 	function do_query( $args ) {
@@ -82,6 +98,15 @@ class P2P_Side_Post extends P2P_Side {
 		return $qv;
 	}
 
+	function is_indeterminate( $side ) {
+		$common = array_intersect(
+			$this->query_vars['post_type'],
+			$side->query_vars['post_type']
+		);
+
+		return !empty( $common );
+	}
+
 	function item_recognize( $arg ) {
 		if ( is_object( $arg ) ) {
 			if ( !isset( $arg->post_type ) )
@@ -96,7 +121,7 @@ class P2P_Side_Post extends P2P_Side {
 		if ( !post_type_exists( $post_type ) )
 			return false;
 
-		return in_array( $post_type, $this->post_type );
+		return in_array( $post_type, $this->query_vars['post_type'] );
 	}
 
 	function item_id( $arg ) {
@@ -116,9 +141,13 @@ class P2P_Side_Post extends P2P_Side {
 class P2P_Side_Attachment extends P2P_Side_Post {
 
 	function __construct( $query_vars ) {
-		P2P_Side::__construct( $query_vars );
+		$this->query_vars = $query_vars;
 
-		$this->post_type = array( 'attachment' );
+		$this->query_vars['post_type'] = array( 'attachment' );
+	}
+
+	function can_create_item() {
+		return false;
 	}
 
 	function get_base_qv( $q ) {
@@ -129,7 +158,11 @@ class P2P_Side_Attachment extends P2P_Side_Post {
 }
 
 
-class P2P_Side_User extends P2P_Side {
+class P2P_Side_User implements P2P_Side {
+
+	function __construct( $query_vars ) {
+		$this->query_vars = $query_vars;
+	}
 
 	function get_desc() {
 		return __( 'Users', P2P_TEXTDOMAIN );
@@ -147,8 +180,12 @@ class P2P_Side_User extends P2P_Side {
 		);
 	}
 
-	function check_capability() {
+	function can_edit_connections() {
 		return current_user_can( 'list_users' );
+	}
+
+	function can_create_item() {
+		return false;
 	}
 
 	function do_query( $args ) {
@@ -170,6 +207,10 @@ class P2P_Side_User extends P2P_Side {
 		return $qv;
 	}
 
+	function is_indeterminate( $side ) {
+		return true;
+	}
+
 	function item_recognize( $arg ) {
 		return is_a( $arg, 'WP_User' );
 	}
@@ -187,6 +228,10 @@ class P2P_Side_User extends P2P_Side {
 
 	function item_title( $item ) {
 		return $item->display_name;
+	}
+
+	function get_base_qv( $q ) {
+		return array_merge( $this->query_vars, $q );
 	}
 }
 

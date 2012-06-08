@@ -236,7 +236,7 @@ class P2P_Box {
 		$args = array(
 			'post_title' => $_POST['post_title'],
 			'post_author' => get_current_user_id(),
-			'post_type' => $this->ctype->get_opposite( 'side' )->post_type[0]
+			'post_type' => $this->ctype->get_opposite( 'side' )->first_post_type()
 		);
 
 		$from = absint( $_POST['from'] );
@@ -295,24 +295,21 @@ class P2P_Box {
 		if ( !$this->args->can_create_post )
 			return false;
 
-		if ( 'post' != $this->ctype->get_opposite( 'object' ) )
-			return false;
-
 		$side = $this->ctype->get_opposite( 'side' );
 
-		if ( count( $side->post_type ) > 1 )
-			return false;
-
-		if ( count( $side->query_vars ) > 1 )
-			return false;
-
-		return true;
+		return $side->can_create_item();
 	}
 
-	public function check_capability() {
-		$show = $this->ctype->get_opposite( 'side' )->check_capability();
+	public function can_edit_connections() {
+		$show = $this->ctype->get_opposite( 'side' )->can_edit_connections();
 
-		return apply_filters( 'p2p_admin_box_show', $show, $this->ctype, $GLOBALS['post'] );
+		if ( defined( 'DOING_AJAX' ) ) {
+			$post = get_post( $_REQUEST['from'] );
+		} else {
+			$post = $GLOBALS['post'];
+		}
+
+		return apply_filters( 'p2p_admin_box_show', $show, $this->ctype, $post );
 	}
 }
 
