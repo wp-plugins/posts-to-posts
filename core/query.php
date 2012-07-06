@@ -94,8 +94,7 @@ class P2P_Query {
 			$qv[$key] = isset( $q["connected_$key"] ) ? $q["connected_$key"] : false;
 		}
 
-		if ( !isset( $q['connected_query'] ) )
-			$qv['query'] = array();
+		$qv['query'] = isset( $q['connected_query'] ) ? $q['connected_query'] : array();
 
 		return $qv;
 	}
@@ -125,9 +124,11 @@ class P2P_Query {
 
 		_p2p_append( $qv, array(
 			'fields' => 'ids',
-			'p2p:include' => _p2p_normalize( $this->args['items'] ),
 			'p2p:per_page' => -1
 		) );
+
+		if ( 'any' != $this->args['items'] )
+			$qv['p2p:include'] = _p2p_normalize( $this->args['items'] );
 
 		return $side->capture_query( $side->get_base_qv( $side->translate_qv( $qv ) ) );
 	}
