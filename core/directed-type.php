@@ -123,30 +123,32 @@ class P2P_Directed_Connection_Type {
 	/**
 	 * Get a list of items that could be connected to a given item.
 	 *
-	 * @param int $post_id A post id.
+	 * @param mixed $arg The item to find connection candidates for.
 	 */
-	public function get_connectable( $item_id, $extra_qv = array() ) {
+	public function get_connectable( $arg, $extra_qv = array() ) {
 		$side = $this->get_opposite( 'side' );
 
-		$extra_qv['p2p:exclude'] = $this->get_non_connectable( $item_id, $extra_qv );
+		$item = $this->get_current( 'side' )->item_recognize( $arg );
+
+		$extra_qv['p2p:exclude'] = $this->get_non_connectable( $item, $extra_qv );
 
 		$extra_qv = $side->get_base_qv( $side->translate_qv( $extra_qv ) );
 
-		$qv = apply_filters( 'p2p_connectable_args', $extra_qv, $this, $item_id );
+		$qv = apply_filters( 'p2p_connectable_args', $extra_qv, $this, $item->get_object() );
 
 		return $this->abstract_query( $qv, $side );
 	}
 
-	private function get_non_connectable( $item_id, $extra_qv ) {
+	private function get_non_connectable( $item, $extra_qv ) {
 		$to_exclude = array();
 
 		if ( $this->indeterminate && !$this->self_connections )
-			$to_exclude[] = $item_id;
+			$to_exclude[] = $item->get_id();
 
 		if ( 'one' == $this->get_current( 'cardinality' ) ) {
 			$to_check = 'any';
 		} elseif ( !$this->duplicate_connections ) {
-			$to_check = $item_id;
+			$to_check = $item;
 		} else {
 			return $to_exclude;
 		}
@@ -169,25 +171,29 @@ class P2P_Directed_Connection_Type {
 	 * @return int|object p2p_id or WP_Error on failure
 	 */
 	public function connect( $from, $to, $meta = array() ) {
-		$from = $this->get_current( 'side' )->item_id( $from );
+		$from = $this->get_current( 'side' )->item_recognize( $from );
 		if ( !$from )
 			return new WP_Error( 'first_parameter', 'Invalid first parameter.' );
 
-		$to = $this->get_opposite( 'side' )->item_id( $to );
+		$to = $this->get_opposite( 'side' )->item_recognize( $to );
 		if ( !$to )
 			return new WP_Error( 'second_parameter', 'Invalid second parameter.' );
 
-		if ( !$this->self_connections && $from == $to )
+		if ( !$this->self_connections && $from->get_id() == $to->get_id() )
 			return new WP_Error( 'self_connection', 'Connection between an element and itself is not allowed.' );
 
 		if ( !$this->duplicate_connections && $this->get_p2p_id( $from, $to ) )
 			return new WP_Error( 'duplicate_connection', 'Duplicate connections are not allowed.' );
 
-		if ( 'one' == $this->get_opposite( 'cardinality' ) && $this->connection_exists( compact( 'from' ) ) )
-			return new WP_Error( 'cardinality_opposite', 'Cardinality problem.' );
+		if ( 'one' == $this->get_opposite( 'cardinality' ) ) {
+			if ( $this->has_connections( $from ) )
+				return new WP_Error( 'cardinality_opposite', 'Cardinality problem (opposite).' );
+		}
 
-		if ( 'one' == $this->get_current( 'cardinality' ) && $this->connection_exists( compact( 'to' ) ) )
-			return new WP_Error( 'cardinality_current', 'Cardinality problem.' );
+		if ( 'one' == $this->get_current( 'cardinality' ) ) {
+			if ( $this->has_connections( $to ) )
+				return new WP_Error( 'cardinality_current', 'Cardinality problem (current).' );
+		}
 
 		$p2p_id = $this->create_connection( array(
 			'from' => $from,
@@ -204,6 +210,14 @@ class P2P_Directed_Connection_Type {
 		}
 
 		return $p2p_id;
+	}
+
+	protected function has_connections( $item ) {
+		$extra_qv = array( 'p2p:per_page' => 1 );
+
+		$connections = $this->lose_direction()->get_connected( $item, $extra_qv, 'abstract' );
+
+		return !empty( $connections->items );
 	}
 
 	protected function get_default( $args, $p2p_id ) {
@@ -225,12 +239,12 @@ class P2P_Directed_Connection_Type {
 	 * @return int|object count or WP_Error on failure
 	 */
 	public function disconnect( $from, $to ) {
-		$from = $this->get_current( 'side' )->item_id( $from );
+		$from = $this->get_current( 'side' )->item_recognize( $from );
 		if ( !$from )
 			return new WP_Error( 'first_parameter', 'Invalid first parameter.' );
 
 		if ( 'any' != $to ) {
-			$to = $this->get_opposite( 'side' )->item_id( $to );
+			$to = $this->get_opposite( 'side' )->item_recognize( $to );
 			if ( !$to )
 				return new WP_Error( 'second_parameter', 'Invalid second parameter.' );
 		}

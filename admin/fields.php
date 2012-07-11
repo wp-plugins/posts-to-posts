@@ -10,7 +10,7 @@ class P2P_Field_Delete implements P2P_Field {
 		return P2P_Mustache::render( 'column-delete-all', $data );
 	}
 
-	function render( $p2p_id, $item ) {
+	function render( $p2p_id, $_ ) {
 		$data = array(
 			'p2p_id' => $p2p_id,
 			'title' => __( 'Delete connection', P2P_TEXTDOMAIN )
@@ -33,7 +33,7 @@ class P2P_Field_Order implements P2P_Field {
 		return '';
 	}
 
-	function render( $p2p_id, $item ) {
+	function render( $p2p_id, $_ ) {
 		return html( 'input', array(
 			'type' => 'hidden',
 			'name' => "p2p_order[$this->sort_key][]",
@@ -57,7 +57,7 @@ class P2P_Field_Generic implements P2P_Field {
 		return $this->data['title'];
 	}
 
-	function render( $p2p_id, $item ) {
+	function render( $p2p_id, $_ ) {
 		$args = array(
 			'name' => array( 'p2p_meta', $p2p_id, $this->key ),
 			'type' => $this->data['type']
@@ -89,7 +89,8 @@ class P2P_Field_Create implements P2P_Field {
 
 	function render( $p2p_id, $item ) {
 		$data = array_merge( $this->title_field->get_data( $item ), array(
-			'item-id' => $item->ID, // TODO: use P2P_Side->item_id()
+			'title' => $item->get_title(),
+			'item-id' => $item->get_id(),
 		) );
 
 		return P2P_Mustache::render( 'column-create', $data );
@@ -110,7 +111,12 @@ abstract class P2P_Field_Title implements P2P_Field {
 	}
 
 	function render( $p2p_id, $item ) {
-		return P2P_Mustache::render( 'column-title', $this->get_data( $item ) );
+		$data = array_merge( $this->get_data( $item ), array(
+			'title' => $item->get_title(),
+			'url' => $item->get_editlink(),
+		) );
+
+		return P2P_Mustache::render( 'column-title', $data );
 	}
 
 	abstract function get_data( $item );
@@ -118,12 +124,12 @@ abstract class P2P_Field_Title implements P2P_Field {
 
 class P2P_Field_Title_Post extends P2P_Field_Title {
 
-	function get_data( $post ) {
+	function get_data( $item ) {
 		$data = array(
-			'title-attr' => get_permalink( $post ),
-			'title' => $post->post_title,
-			'url' => get_edit_post_link( $post ),
+			'title-attr' => $item->get_permalink()
 		);
+
+		$post = $item->get_object();
 
 		if ( 'publish' != $post->post_status ) {
 			$status_obj = get_post_status_object( $post->post_status );
@@ -138,13 +144,9 @@ class P2P_Field_Title_Post extends P2P_Field_Title {
 
 class P2P_Field_Title_Attachment extends P2P_Field_Title {
 
-	function get_data( $attachment ) {
-		list( $src ) = wp_get_attachment_image_src( $attachment->ID, 'thumbnail', true );
-
+	function get_data( $item ) {
 		$data = array(
-			'title-attr' => $attachment->post_title,
-			'title' => html( 'img', compact( 'src' ) ),
-			'url' => get_edit_post_link( $attachment ),
+			'title-attr' => $item->get_object()->post_title,
 		);
 
 		return $data;
@@ -156,19 +158,7 @@ class P2P_Field_Title_User extends P2P_Field_Title {
 	function get_data( $user ) {
 		return array(
 			'title-attr' => '',
-			'title' => $user->display_name,
-			'url' => $this->get_edit_url( $user->ID ),
 		);
-	}
-
-	private function get_edit_url( $user_id ) {
-		if ( get_current_user_id() == $user_id ) {
-			$edit_link = 'profile.php';
-		} else {
-			$edit_link = "user-edit.php?user_id=$user_id";
-		}
-
-		return admin_url( $edit_link );
 	}
 }
 

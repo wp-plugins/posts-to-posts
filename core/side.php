@@ -1,29 +1,44 @@
 <?php
 
-interface P2P_Side {
-	public function get_title();
-	public function get_desc();
-	public function get_labels();
+abstract class P2P_Side {
 
-	public function can_edit_connections();
-	public function can_create_item();
+	abstract function get_title();
+	abstract function get_desc();
+	abstract function get_labels();
 
-	public function get_base_qv( $q );
-	public function translate_qv( $qv );
-	public function do_query( $args );
-	public function capture_query( $args );
+	abstract function can_edit_connections();
+	abstract function can_create_item();
 
-	public function is_indeterminate( $side );
+	abstract function get_base_qv( $q );
+	abstract function translate_qv( $qv );
+	abstract function do_query( $args );
+	abstract function capture_query( $args );
 
-	// TODO: break into separate interface
-	public function item_recognize( $arg );
-	public function item_object( $item_id );
-	public function item_id( $arg );
-	public function item_title( $item );
+	abstract function is_indeterminate( $side );
+
+	protected $item_type;
+
+	function item_recognize( $arg ) {
+		$class = $this->item_type;
+
+		if ( is_a( $arg, $class ) )
+			return $arg;
+
+		if ( is_a( $arg, 'P2P_Item' ) )
+			return false;
+
+		$raw_item = $this->recognize( $arg );
+		if ( !$raw_item )
+			return false;
+
+		return new $class( $raw_item );
+	}
 }
 
 
-class P2P_Side_Post implements P2P_Side {
+class P2P_Side_Post extends P2P_Side {
+
+	protected $item_type = 'P2P_Item_Post';
 
 	function __construct( $query_vars ) {
 		$this->query_vars = $query_vars;
@@ -121,41 +136,49 @@ class P2P_Side_Post implements P2P_Side {
 	}
 
 	function item_recognize( $arg ) {
-		if ( is_object( $arg ) ) {
-			if ( !isset( $arg->post_type ) )
+		$class = $this->item_type;
+
+		if ( is_a( $arg, $class ) ) {
+			if ( !$this->recognize_post_type( $arg->post_type ) )
 				return false;
-			$post_type = $arg->post_type;
-		} elseif ( $post_id = (int) $arg ) {
-			$post_type = get_post_type( $post_id );
-		} else {
-			$post_type = $arg;
+
+			return $arg;
 		}
 
+		if ( is_a( $arg, 'P2P_Item' ) )
+			return false;
+
+		$raw_item = $this->recognize( $arg );
+		if ( !$raw_item )
+			return false;
+
+		return new $class( $raw_item );
+	}
+
+	protected function recognize( $arg ) {
+		$post = get_post( $arg );
+
+		if ( !is_object( $post ) )
+			return false;
+
+		if ( !$this->recognize_post_type( $post->post_type ) )
+			return false;
+
+		return $post;
+	}
+
+	public function recognize_post_type( $post_type ) {
 		if ( !post_type_exists( $post_type ) )
 			return false;
 
 		return in_array( $post_type, $this->query_vars['post_type'] );
 	}
-
-	function item_object( $item_id ) {
-		return get_post( $item_id );
-	}
-
-	function item_id( $arg ) {
-		$post = get_post( $arg );
-		if ( $post )
-			return $post->ID;
-
-		return false;
-	}
-
-	function item_title( $item ) {
-		return $item->post_title;
-	}
 }
 
 
 class P2P_Side_Attachment extends P2P_Side_Post {
+
+	protected $item_type = 'P2P_Item_Attachment';
 
 	function __construct( $query_vars ) {
 		$this->query_vars = $query_vars;
@@ -175,7 +198,9 @@ class P2P_Side_Attachment extends P2P_Side_Post {
 }
 
 
-class P2P_Side_User implements P2P_Side {
+class P2P_Side_User extends P2P_Side {
+
+	protected $item_type = 'P2P_Item_User';
 
 	function __construct( $query_vars ) {
 		$this->query_vars = $query_vars;
@@ -213,6 +238,7 @@ class P2P_Side_User implements P2P_Side {
 		$args['count_total'] = false;
 
 		$uq = new WP_User_Query;
+		$uq->_p2p_capture = true; // needed by P2P_URL_Query
 
 		// see http://core.trac.wordpress.org/ticket/21119
 		$uq->query_vars = wp_parse_args( $args, array(
@@ -261,31 +287,15 @@ class P2P_Side_User implements P2P_Side {
 		return true;
 	}
 
-	function item_recognize( $arg ) {
-		return is_a( $arg, 'WP_User' );
-	}
-
-	function item_object( $item_id ) {
-		return get_user_by( 'id', $item_id );
-	}
-
-	function item_id( $arg ) {
-		if ( $this->item_recognize( $arg ) )
-			return $arg->ID;
-
-		$user = get_user_by( 'id', $arg );
-		if ( $user )
-			return $user->ID;
-
-		return false;
-	}
-
-	function item_title( $item ) {
-		return $item->display_name;
-	}
-
 	function get_base_qv( $q ) {
 		return array_merge( $this->query_vars, $q );
+	}
+
+	protected function recognize( $arg ) {
+		if ( is_a( $arg, 'WP_User' ) )
+			return $arg;
+
+		return get_user_by( 'id', $arg );
 	}
 }
 

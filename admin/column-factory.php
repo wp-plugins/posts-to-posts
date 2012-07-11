@@ -37,27 +37,33 @@ class P2P_Column_Factory {
 	static function add_columns() {
 		$screen = get_current_screen();
 
-		if ( 'edit' != $screen->base )
+		$screen_map = array(
+			'edit' => 'post',
+			'users' => 'user'
+		);
+
+		if ( !isset( $screen_map[ $screen->base ] ) )
 			return;
 
-		$post_type = $screen->post_type;
+		$object_type = $screen_map[ $screen->base ];
 
 		foreach ( self::$column_args as $p2p_type => $column_args ) {
 			$ctype = p2p_type( $p2p_type );
 
-			$directed = $ctype->find_direction( $post_type );
-			if ( !$directed )
+			$direction = _p2p_compress_direction( $ctype->find_direction_from_post_type( $screen->post_type ) );
+
+			if ( !$direction )
 				continue;
+
+			$directed = $ctype->set_direction( $direction )->flip_direction();
 
 			if ( !( 'any' == $column_args || $directed->get_direction() == $column_args ) )
 				continue;
 
-			$column = new P2P_Column( $directed );
+			$class = 'P2P_Column_' . ucfirst( $object_type );
+			$column = new $class( $directed );
 
 			$column->styles();
-
-			add_filter( "manage_{$screen->id}_columns", array( $column, 'add_column' ) );
-			add_action( "manage_{$post_type}_posts_custom_column", array( $column, 'display_column' ), 10, 2 );
 		}
 	}
 }

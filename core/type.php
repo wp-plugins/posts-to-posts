@@ -110,6 +110,7 @@ class P2P_Connection_Type {
 	}
 
 	public function __call( $method, $args ) {
+		// TODO: make find_direction() return the normalized item and pass that along
 		$directed = $this->find_direction( $args[0] );
 		if ( !$directed ) {
 			trigger_error( sprintf( "Can't determine direction for '%s' type.", $this->name ), E_USER_WARNING );
@@ -141,15 +142,26 @@ class P2P_Connection_Type {
 	 *
 	 * @param mixed A post type, object or object id.
 	 * @param bool Whether to return an instance of P2P_Directed_Connection_Type or just the direction
+	 * @param string An object type, such as 'post' or 'user'
 	 *
 	 * @return bool|object|string False on failure, P2P_Directed_Connection_Type instance or direction on success.
 	 */
-	public function find_direction( $arg, $instantiate = true ) {
+	public function find_direction( $arg, $instantiate = true, $object_type = null ) {
 		if ( is_array( $arg ) )
 			$arg = reset( $arg );
 
+		$opposite_side = self::choose_side( $object_type,
+			$this->object['from'],
+			$this->object['to']
+		);
+
+		if ( in_array( $opposite_side, array( 'from', 'to' ) ) )
+			return $this->set_direction( $opposite_side, $instantiate );
+
 		foreach ( array( 'from', 'to' ) as $direction ) {
-			if ( !$this->side[ $direction ]->item_recognize( $arg ) )
+			$item = $this->side[ $direction ]->item_recognize( $arg );
+
+			if ( !$item )
 				continue;
 
 			if ( $this->indeterminate )
@@ -161,28 +173,37 @@ class P2P_Connection_Type {
 		return false;
 	}
 
-	// Used in each_connected()
-	private function find_direction_multiple( $post_types ) {
+	private static function choose_side( $current, $from, $to ) {
+		if ( $from == $to && $current == $from )
+			return 'any';
+
+		if ( $current == $from )
+			return 'to';
+
+		if ( $current == $to )
+			return 'from';
+
+		return false;
+	}
+
+	public function find_direction_from_post_type( $post_types ) {
 		$possible_directions = array();
 
 		foreach ( array( 'from', 'to' ) as $direction ) {
-			if ( 'post' == $this->object[$direction] ) {
-				foreach ( $post_types as $post_type ) {
-					if ( !$this->side[ $direction ]->item_recognize( $post_type ) ) {
-						$possible_directions[] = $direction;
-						break;
-					}
+			$side = $this->side[ $direction ];
+
+			if ( !method_exists( $side, 'recognize_post_type' ) )
+				continue;
+
+			foreach ( (array) $post_types as $post_type ) {
+				if ( $side->recognize_post_type( $post_type ) ) {
+					$possible_directions[] = $direction;
+					break;
 				}
 			}
 		}
 
-		if ( empty( $possible_directions ) )
-			return false;
-
-		if ( count( $possible_directions ) > 1 )
-			return 'any';
-
-		return reset( $possible_directions );
+		return $possible_directions;
 	}
 
 	/** Alias for get_prev() */
@@ -272,11 +293,10 @@ class P2P_Connection_Type {
 		$post_types = array_unique( wp_list_pluck( $items, 'post_type' ) );
 
 		if ( count( $post_types ) > 1 ) {
-			$direction = $this->find_direction_multiple( $post_types );
 			$extra_qv['post_type'] = 'any';
-		} else {
-			$direction = $this->find_direction( $post_types[0], false );
 		}
+
+		$direction = _p2p_compress_direction( $this->find_direction_from_post_type( $post_types ) );
 
 		if ( !$direction )
 			return false;
