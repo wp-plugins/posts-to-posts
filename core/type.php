@@ -75,14 +75,12 @@ class P2P_Connection_Type {
 
 	private function set_labels( &$args ) {
 		foreach ( array( 'from', 'to' ) as $key ) {
-			$labels = _p2p_pluck( $args, $key . '_labels' );
+			$labels = $this->side[ $key ]->get_labels();
+			$labels['create'] = __( 'Create connections', P2P_TEXTDOMAIN );
 
-			if ( empty( $labels ) )
-				$labels = $this->side[ $key ]->get_labels();
-			else
-				$labels = (object) $labels;
+			_p2p_append( $labels, (array) _p2p_pluck( $args, $key . '_labels' ) );
 
-			$this->labels[ $key ] = $labels;
+			$this->labels[ $key ] = (object) $labels;
 		}
 	}
 
@@ -150,14 +148,20 @@ class P2P_Connection_Type {
 		if ( is_array( $arg ) )
 			$arg = reset( $arg );
 
-		$opposite_side = self::choose_side( $object_type,
-			$this->object['from'],
-			$this->object['to']
-		);
+		$opposite_side = $this->direction_from_object_type( $object_type );
 
 		if ( in_array( $opposite_side, array( 'from', 'to' ) ) )
 			return $this->set_direction( $opposite_side, $instantiate );
 
+		$direction = $this->direction_from_item( $arg );
+
+		if ( $direction )
+			return $this->set_direction( $direction, $instantiate );
+
+		return false;
+	}
+
+	public function direction_from_item( $arg ) {
 		foreach ( array( 'from', 'to' ) as $direction ) {
 			$item = $this->side[ $direction ]->item_recognize( $arg );
 
@@ -167,13 +171,14 @@ class P2P_Connection_Type {
 			if ( $this->indeterminate )
 				$direction = $this->reciprocal ? 'any' : 'from';
 
-			return $this->set_direction( $direction, $instantiate );
+			return $direction;
 		}
-
-		return false;
 	}
 
-	private static function choose_side( $current, $from, $to ) {
+	public function direction_from_object_type( $current ) {
+		$from = $this->object['from'];
+		$to = $this->object['to'];
+
 		if ( $from == $to && $current == $from )
 			return 'any';
 
@@ -186,7 +191,7 @@ class P2P_Connection_Type {
 		return false;
 	}
 
-	public function find_direction_from_post_type( $post_types ) {
+	public function direction_from_post_type( $post_types ) {
 		$possible_directions = array();
 
 		foreach ( array( 'from', 'to' ) as $direction ) {
@@ -203,7 +208,7 @@ class P2P_Connection_Type {
 			}
 		}
 
-		return $possible_directions;
+		return p2p_compress_direction( $possible_directions );
 	}
 
 	/** Alias for get_prev() */
@@ -296,8 +301,7 @@ class P2P_Connection_Type {
 			$extra_qv['post_type'] = 'any';
 		}
 
-		$direction = _p2p_compress_direction( $this->find_direction_from_post_type( $post_types ) );
-
+		$direction = $this->direction_from_post_type( $post_types );
 		if ( !$direction )
 			return false;
 

@@ -57,8 +57,8 @@ class P2P_Box_Factory {
 			$ctype = p2p_type( $p2p_type );
 
 			$directions = array_intersect(
-				_p2p_expand_direction( $box_args->show ),
-				$ctype->find_direction_from_post_type( $post_type )
+				p2p_expand_direction( $box_args->show ),
+				p2p_expand_direction( $ctype->direction_from_post_type( $post_type ) )
 			);
 
 			$title = $ctype->title;
