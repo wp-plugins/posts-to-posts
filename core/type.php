@@ -108,6 +108,11 @@ class P2P_Connection_Type {
 	}
 
 	public function __call( $method, $args ) {
+		if ( ! method_exists( 'P2P_Directed_Connection_Type', $method ) ) {
+			trigger_error( "Method '$method' does not exist.", E_USER_ERROR );
+			return;
+		}
+
 		// TODO: make find_direction() return the normalized item and pass that along
 		$directed = $this->find_direction( $args[0] );
 		if ( !$directed ) {
@@ -148,10 +153,14 @@ class P2P_Connection_Type {
 		if ( is_array( $arg ) )
 			$arg = reset( $arg );
 
-		$opposite_side = $this->direction_from_object_type( $object_type );
+		if ( $object_type ) {
+			$direction = $this->direction_from_object_type( $object_type );
+			if ( !$direction )
+				return false;
 
-		if ( in_array( $opposite_side, array( 'from', 'to' ) ) )
-			return $this->set_direction( $opposite_side, $instantiate );
+			if ( in_array( $direction, array( 'from', 'to' ) ) )
+				return $this->set_direction( $direction, $instantiate );
+		}
 
 		$direction = $this->direction_from_item( $arg );
 
@@ -191,24 +200,33 @@ class P2P_Connection_Type {
 		return false;
 	}
 
-	public function direction_from_post_type( $post_types ) {
+	public function direction_from_types( $object_type, $post_types = null ) {
 		$possible_directions = array();
 
 		foreach ( array( 'from', 'to' ) as $direction ) {
-			$side = $this->side[ $direction ];
+			if ( $this->_type_check( $direction, $object_type, $post_types ) )
+				$possible_directions[] = $direction;
+		}
 
-			if ( !method_exists( $side, 'recognize_post_type' ) )
-				continue;
+		return _p2p_compress_direction( $possible_directions );
+	}
 
-			foreach ( (array) $post_types as $post_type ) {
-				if ( $side->recognize_post_type( $post_type ) ) {
-					$possible_directions[] = $direction;
-					break;
-				}
+	private function _type_check( $direction, $object_type, $post_types ) {
+		if ( $object_type != $this->object[ $direction ] )
+			return false;
+
+		$side = $this->side[ $direction ];
+
+		if ( !method_exists( $side, 'recognize_post_type' ) )
+			return true;
+
+		foreach ( (array) $post_types as $post_type ) {
+			if ( $side->recognize_post_type( $post_type ) ) {
+				return true;
 			}
 		}
 
-		return p2p_compress_direction( $possible_directions );
+		return false;
 	}
 
 	/** Alias for get_prev() */
@@ -301,7 +319,7 @@ class P2P_Connection_Type {
 			$extra_qv['post_type'] = 'any';
 		}
 
-		$direction = $this->direction_from_post_type( $post_types );
+		$direction = $this->direction_from_types( 'post', $post_types );
 		if ( !$direction )
 			return false;
 

@@ -1,13 +1,15 @@
 <?php
 
-function p2p_expand_direction( $direction ) {
+/** @internal */
+function _p2p_expand_direction( $direction ) {
 	if ( 'any' == $direction )
 		return array( 'from', 'to' );
 	else
 		return array( $direction );
 }
 
-function p2p_compress_direction( $directions ) {
+/** @internal */
+function _p2p_compress_direction( $directions ) {
 	if ( empty( $directions ) )
 		return false;
 
@@ -17,7 +19,8 @@ function p2p_compress_direction( $directions ) {
 	return reset( $directions );
 }
 
-function p2p_flip_direction( $direction ) {
+/** @internal */
+function _p2p_flip_direction( $direction ) {
 	$map = array(
 		'from' => 'to',
 		'to' => 'from',
