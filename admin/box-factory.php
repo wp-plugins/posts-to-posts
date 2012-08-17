@@ -30,6 +30,7 @@ class P2P_Box_Factory extends P2P_Factory {
 		$box_args = wp_parse_args( $box_args, array(
 			'show' => 'any',
 			'context' => 'side',
+			'priority' => 'default',
 			'can_create_post' => true
 		) );
 
@@ -44,17 +45,18 @@ class P2P_Box_Factory extends P2P_Factory {
 
 	function add_item( $directed, $object_type, $post_type, $title ) {
 		if ( !self::show_box( $directed, $GLOBALS['post'] ) )
-			continue;
+			return;
 
 		$box = $this->create_box( $directed );
+		$box_args = $this->queue[ $directed->name ];
 
 		add_meta_box(
 			sprintf( 'p2p-%s-%s', $directed->get_direction(), $directed->name ),
 			$title,
 			array( $box, 'render' ),
 			$post_type,
-			$this->queue[ $directed->name ]->context,
-			'default'
+			$box_args->context,
+			$box_args->priority
 		);
 
 		$box->init_scripts();
@@ -97,7 +99,7 @@ class P2P_Box_Factory extends P2P_Factory {
 		if ( isset( $_POST['p2p_connections'] ) ) {
 			// Loop through the hidden fields instead of through $_POST['p2p_meta'] because empty checkboxes send no data.
 			foreach ( $_POST['p2p_connections'] as $p2p_id ) {
-				$data = scbForms::get_value( array( 'p2p_meta', $p2p_id ), $_POST, array() );
+				$data = stripslashes_deep( scbForms::get_value( array( 'p2p_meta', $p2p_id ), $_POST, array() ) );
 
 				$connection = p2p_get_connection( $p2p_id );
 
@@ -109,7 +111,7 @@ class P2P_Box_Factory extends P2P_Factory {
 
 				$data = scbForms::validate_post_data( $fields, $data );
 
-				scbForms::update_meta( $fields, $data, $p2p_id, 'p2p' );
+				scbForms::update_meta( $fields, self::addslashes_deep( $data ), $p2p_id, 'p2p' );
 			}
 		}
 
@@ -121,6 +123,13 @@ class P2P_Box_Factory extends P2P_Factory {
 				}
 			}
 		}
+	}
+
+	private function addslashes_deep( $value ) {
+		if ( is_array( $value ) )
+			return array_map( array( __CLASS__, __METHOD__ ), $value );
+
+		return addslashes( $value );
 	}
 
 	/**
