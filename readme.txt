@@ -53,6 +53,9 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 
 == Changelog ==
 
+= 1.4.2 =
+* fixed each_connected() returning wrapped objects
+
 = 1.4.1 =
 * fixed errors in admin box
 * fixed each_connected()
@@ -63,6 +66,7 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 * improved usability of connection candidate UI
 * fixed issues related to auto-drafts
 * show columns on the admin user list screen
+* [more info](http://scribu.net/wordpress/posts-to-posts/p2p-1-4.html)
 
 = 1.3.1 =
 * sanitize connection fields values on save, preventing security exploits
