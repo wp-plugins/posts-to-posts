@@ -2,9 +2,9 @@
 
 class P2P_Connection_Type {
 
-	public $indeterminate;
+	protected $directed_class = 'P2P_Directed_Connection_Type';
 
-	public $object;
+	protected $arrow = '&rarr;';
 
 	public $side;
 
@@ -14,20 +14,10 @@ class P2P_Connection_Type {
 
 	public $labels;
 
-	public function __construct( $args ) {
-		foreach ( array( 'from', 'to' ) as $direction ) {
-			$this->object[ $direction ] = _p2p_pluck( $args, $direction . '_object' );
+	public function __construct( $sides, $args ) {
+		$this->side = $sides;
 
-			$class = 'P2P_Side_' . ucfirst( $this->object[ $direction ] );
-
-			$this->side[ $direction ] = new $class( _p2p_pluck( $args, $direction . '_query_vars' ) );
-		}
-
-		if ( $this->object['from'] == $this->object['to'] ) {
-			$this->indeterminate = $this->side['from']->is_indeterminate( $this->side['to'] );
-		} else {
-			$args['self_connections'] = true;
-		}
+		$this->set_self_connections( $args );
 
 		$this->set_cardinality( _p2p_pluck( $args, 'cardinality' ) );
 
@@ -39,6 +29,22 @@ class P2P_Connection_Type {
 
 		foreach ( $args as $key => $value ) {
 			$this->$key = $value;
+		}
+	}
+
+	function _directions_for_admin( $direction, $show_ui ) {
+		return array_intersect(
+			_p2p_expand_direction( $show_ui ),
+			_p2p_expand_direction( $direction )
+		);
+	}
+
+	private function set_self_connections( &$args ) {
+		$from_side = $this->side['from'];
+		$to_side = $this->side['to'];
+
+		if ( !$from_side->is_same_type( $to_side ) ) {
+			$args['self_connections'] = true;
 		}
 	}
 
@@ -135,7 +141,7 @@ class P2P_Connection_Type {
 			return false;
 
 		if ( $instantiate ) {
-			$class = $this->indeterminate ? 'P2P_Indeterminate_Connection_Type' : 'P2P_Directed_Connection_Type';
+			$class = $this->directed_class;
 
 			return new $class( $this, $direction );
 		}
@@ -173,25 +179,26 @@ class P2P_Connection_Type {
 		return false;
 	}
 
-	public function direction_from_item( $arg ) {
+	protected function choose_direction( $direction ) {
+		return $direction;
+	}
+
+	protected function direction_from_item( $arg ) {
 		foreach ( array( 'from', 'to' ) as $direction ) {
 			$item = $this->side[ $direction ]->item_recognize( $arg );
 
 			if ( !$item )
 				continue;
 
-			if ( $this->indeterminate )
-				$direction = $this->reciprocal ? 'any' : 'from';
-
-			return $direction;
+			return $this->choose_direction( $direction );
 		}
 
 		return false;
 	}
 
-	public function direction_from_object_type( $current ) {
-		$from = $this->object['from'];
-		$to = $this->object['to'];
+	protected function direction_from_object_type( $current ) {
+		$from = $this->side['from']->get_object_type();
+		$to = $this->side['to']->get_object_type();
 
 		if ( $from == $to && $current == $from )
 			return 'any';
@@ -210,17 +217,14 @@ class P2P_Connection_Type {
 			if ( !$this->_type_check( $direction, $object_type, $post_types ) )
 				continue;
 
-			if ( $this->indeterminate )
-				$direction = $this->reciprocal ? 'any' : 'from';
-
-			return $direction;
+			return $this->choose_direction( $direction );
 		}
 
 		return false;
 	}
 
 	private function _type_check( $direction, $object_type, $post_types ) {
-		if ( $object_type != $this->object[ $direction ] )
+		if ( $object_type != $this->side[ $direction ]->get_object_type() )
 			return false;
 
 		$side = $this->side[ $direction ];
@@ -330,9 +334,11 @@ class P2P_Connection_Type {
 		$possible_directions = array();
 
 		foreach ( array( 'from', 'to' ) as $direction ) {
-			if ( 'post' == $this->object[$direction] ) {
+			$side = $this->side[ $direction ];
+
+			if ( 'post' == $side->get_object_type() ) {
 				foreach ( $post_types as $post_type ) {
-					if ( $this->side[ $direction ]->recognize_post_type( $post_type ) ) {
+					if ( $side->recognize_post_type( $post_type ) ) {
 						$possible_directions[] = $direction;
 					}
 				}
@@ -368,9 +374,7 @@ class P2P_Connection_Type {
 			$$key = $this->side[ $key ]->get_desc();
 		}
 
-		$arrow = $this->indeterminate ? '&harr;' : '&rarr;';
-
-		$label = "$from $arrow $to";
+		$label = "$from {$this->arrow} $to";
 
 		$title = $this->title[ 'from' ];
 
@@ -378,6 +382,39 @@ class P2P_Connection_Type {
 			$label .= " ($title)";
 
 		return $label;
+	}
+}
+
+
+class P2P_Indeterminate_Connection_Type extends P2P_Connection_Type {
+
+	protected $directed_class = 'P2P_Indeterminate_Directed_Connection_Type';
+
+	protected $arrow = '&harr;';
+
+	protected function choose_direction( $direction ) {
+		return 'from';
+	}
+
+	function _directions_for_admin( $direction, $show_ui ) {
+		return parent::_directions_for_admin( 'any', $show_ui );
+	}
+}
+
+
+class P2P_Reciprocal_Connection_Type extends P2P_Indeterminate_Connection_Type {
+
+	protected function choose_direction( $direction ) {
+		return 'any';
+	}
+
+	function _directions_for_admin( $direction, $show_ui ) {
+		if ( $show_ui )
+			$directions = array( 'any' );
+		else
+			$directions = array();
+
+		return $directions;
 	}
 }
 
