@@ -34,7 +34,7 @@ class P2P_Directed_Connection_Type {
 		return $this->set_direction( _p2p_flip_direction( $this->direction ) );
 	}
 
-	public function get( $side, $key ) {
+	public function get( $side, $field ) {
 		static $map = array(
 			'current' => array(
 				'to' => 'to',
@@ -48,9 +48,7 @@ class P2P_Directed_Connection_Type {
 			)
 		);
 
-		$arg = $this->ctype->$key;
-
-		return $arg[ $map[ $side ][ $this->direction ] ];
+		return $this->ctype->get_field( $field, $map[ $side ][ $this->direction ] );
 	}
 
 	private function abstract_query( $qv, $which, $output = 'abstract' ) {
@@ -164,6 +162,8 @@ class P2P_Directed_Connection_Type {
 		}
 
 		$extra_qv['fields'] = 'ids';
+		$extra_qv['p2p:per_page'] = -1;
+
 		$already_connected = $this->get_connected( $to_check, $extra_qv, 'abstract' )->items;
 
 		_p2p_append( $to_exclude, $already_connected );
