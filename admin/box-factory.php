@@ -4,22 +4,18 @@ define( 'P2P_BOX_NONCE', 'p2p-box' );
 
 class P2P_Box_Factory extends P2P_Factory {
 
-	function __construct() {
-		add_action( 'p2p_registered_connection_type', array( $this, 'filter_ctypes' ), 10, 2 );
+	protected $key = 'admin_box';
 
-		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
+	function __construct() {
+		parent::__construct();
+
+		add_action( 'add_meta_boxes', array( $this, 'add_items' ) );
 		add_action( 'save_post', array( $this, 'save_post' ), 10, 2 );
 		add_action( 'wp_ajax_p2p_box', array( $this, 'wp_ajax_p2p_box' ) );
 	}
 
-	function filter_ctypes( $ctype, $args ) {
-		if ( isset( $args['admin_box'] ) ) {
-			$box_args = _p2p_pluck( $args, 'admin_box' );
-			if ( !is_array( $box_args ) )
-				$box_args = array( 'show' => $box_args );
-		} else {
-			$box_args = array();
-		}
+	function expand_arg( $args ) {
+		$box_args = parent::expand_arg( $args );
 
 		foreach ( array( 'can_create_post' ) as $key ) {
 			if ( isset( $args[ $key ] ) ) {
@@ -28,18 +24,15 @@ class P2P_Box_Factory extends P2P_Factory {
 		}
 
 		$box_args = wp_parse_args( $box_args, array(
-			'show' => 'any',
 			'context' => 'side',
 			'priority' => 'default',
 			'can_create_post' => true
 		) );
 
-		$this->register( $ctype->name, $box_args );
-
-		return $args;
+		return $box_args;
 	}
 
-	function add_meta_boxes( $post_type ) {
+	function add_items( $post_type ) {
 		$this->filter( 'post', $post_type );
 	}
 
