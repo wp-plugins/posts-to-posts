@@ -32,7 +32,7 @@ class P2P_CLI_Command extends WP_CLI_Command {
 			foreach ( _p2p_extract_post_types( $ctype->side ) as $ptype ) {
 				$assoc_args = array( 'post_type' => $ptype );
 
-				WP_CLI::launch( 'wp post generate' . \WP_CLI\Utils\compose_assoc_args( $assoc_args ) );
+				WP_CLI::launch( 'wp post generate' . \WP_CLI\Utils\assoc_args_to_str( $assoc_args ) );
 			}
 		}
 
