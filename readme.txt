@@ -57,7 +57,9 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 * added [admin dropdowns](https://github.com/scribu/wp-posts-to-posts/wiki/Admin-dropdown-display)
 * fixed SQL error related to user connections
 * fixed 'labels' handling and added 'column_title' subkey
+* refactor metabox JavaScript using Backbone.js
 * lazy-load connection candidates, for faster page loads
+* lazy-load PHP classes using `spl_register_autoload()`
 
 = 1.4.3 =
 * various bug fixes
