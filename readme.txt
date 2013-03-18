@@ -53,7 +53,7 @@ Make sure your host is running PHP 5. The only foolproof way to do this is to ad
 
 == Changelog ==
 
-= 1.5.2 (next) =
+= 1.5.2 =
 * fixed get_prev() and get_next()
 * introduced get_adjacent_items()
 * fixed admin column titles
