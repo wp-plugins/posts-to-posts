@@ -1,5 +1,5 @@
 (function() {
-  var ENTER_KEY, get_mustache_template, remove_row, row_wait;
+  var Candidate, Candidates, CandidatesView, Connection, Connections, ConnectionsView, CreatePostView, ENTER_KEY, MetaboxView, get_mustache_template, remove_row, row_wait;
 
   ENTER_KEY = 13;
 
@@ -20,17 +20,17 @@
     return jQuery('#p2p-template-' + name).html();
   };
 
-  window.P2PAdmin = {
-    boxes: {}
-  };
+  Candidate = Backbone.Model.extend({});
 
-  P2PAdmin.Candidates = Backbone.Model.extend({
+  Connection = Backbone.Model.extend({});
+
+  Candidates = Backbone.Model.extend({
     sync: function() {
       var params,
         _this = this;
-      params = _.extend({}, this.attributes, {
+      params = {
         subaction: 'search'
-      });
+      };
       return this.ajax_request(params, function(response) {
         var _ref;
         _this.total_pages = ((_ref = response.navigation) != null ? _ref['total-pages-raw'] : void 0) || 1;
@@ -46,7 +46,8 @@
     }
   });
 
-  P2PAdmin.Connections = Backbone.Model.extend({
+  Connections = Backbone.Collection.extend({
+    model: Connection,
     createItemAndConnect: function(title) {
       var data,
         _this = this;
@@ -55,29 +56,29 @@
         post_title: title
       };
       return this.ajax_request(data, function(response) {
-        return _this.trigger('create:from_new_item', response);
+        return _this.trigger('create', response);
       });
     },
-    create: function($td) {
+    create: function(candidate) {
       var data,
         _this = this;
       data = {
         subaction: 'connect',
-        to: $td.find('div').data('item-id')
+        to: candidate.get('id')
       };
       return this.ajax_request(data, function(response) {
-        return _this.trigger('create', response, $td);
+        return _this.trigger('create', response);
       });
     },
-    "delete": function($td) {
+    "delete": function(connection) {
       var data,
         _this = this;
       data = {
         subaction: 'disconnect',
-        p2p_id: $td.find('input').val()
+        p2p_id: connection.get('id')
       };
       return this.ajax_request(data, function(response) {
-        return _this.trigger('delete', response, $td);
+        return _this.trigger('delete', response, connection);
       });
     },
     clear: function() {
@@ -92,7 +93,7 @@
     }
   });
 
-  P2PAdmin.ConnectionsView = Backbone.View.extend({
+  ConnectionsView = Backbone.View.extend({
     events: {
       'click th.p2p-col-delete .p2p-icon': 'clear',
       'click td.p2p-col-delete .p2p-icon': 'delete'
@@ -100,10 +101,7 @@
     initialize: function(options) {
       this.maybe_make_sortable();
       this.collection.on('create', this.afterCreate, this);
-      this.collection.on('create:from_new_item', this.afterCreate, this);
-      this.collection.on('delete', this.afterDelete, this);
-      this.collection.on('clear', this.afterClear, this);
-      return options.candidates.on('promote', this.create, this);
+      return this.collection.on('clear', this.afterClear, this);
     },
     maybe_make_sortable: function() {
       if (this.$('th.p2p-col-order').length) {
@@ -134,18 +132,16 @@
       return this.$el.hide().find('tbody').html('');
     },
     "delete": function(ev) {
-      var $td;
+      var $td, req;
       ev.preventDefault();
       $td = jQuery(ev.target).closest('td');
       row_wait($td);
-      this.collection["delete"]($td);
-      return null;
-    },
-    afterDelete: function(response, $td) {
-      return remove_row($td);
-    },
-    create: function($td) {
-      this.collection.create($td);
+      req = this.collection["delete"](new Connection({
+        id: $td.find('input').val()
+      }));
+      req.done(function() {
+        return remove_row($td);
+      });
       return null;
     },
     afterCreate: function(response) {
@@ -154,7 +150,7 @@
     }
   });
 
-  P2PAdmin.CandidatesView = Backbone.View.extend({
+  CandidatesView = Backbone.View.extend({
     template: Mustache.compile(get_mustache_template('tab-list')),
     events: {
       'keypress :text': 'handleReturn',
@@ -164,26 +160,29 @@
     },
     initialize: function(options) {
       this.spinner = options.spinner;
-      options.connections.on('create', this.afterConnectionCreated, this);
       options.connections.on('delete', this.afterCandidatesRefreshed, this);
       options.connections.on('clear', this.afterCandidatesRefreshed, this);
       this.collection.on('sync', this.afterCandidatesRefreshed, this);
       this.collection.on('error', this.afterInvalid, this);
       return this.collection.on('invalid', this.afterInvalid, this);
     },
-    afterConnectionCreated: function(response, $td) {
-      if (this.options.duplicate_connections) {
-        return $td.find('.p2p-icon').css('background-image', '');
-      } else {
-        return remove_row($td);
-      }
-    },
     promote: function(ev) {
-      var $td;
-      $td = jQuery(ev.target).closest('td');
+      var $div, $td, req,
+        _this = this;
       ev.preventDefault();
+      $div = jQuery(ev.target);
+      $td = $div.closest('td');
       row_wait($td);
-      this.collection.trigger('promote', $td);
+      req = this.options.connections.create(new Candidate({
+        id: $div.data('item-id')
+      }));
+      req.done(function() {
+        if (_this.options.duplicate_connections) {
+          return $td.find('.p2p-icon').css('background-image', '');
+        } else {
+          return remove_row($td);
+        }
+      });
       return null;
     },
     handleReturn: function(ev) {
@@ -228,22 +227,24 @@
     afterCandidatesRefreshed: function(response) {
       this.spinner.remove();
       this.$('button, .p2p-results, .p2p-navigation, .p2p-notice').remove();
-      return this.$el.append(this.template(response));
+      if ('string' !== typeof response) {
+        response = this.template(response);
+      }
+      return this.$el.append(response);
     },
     afterInvalid: function() {
       return this.spinner.remove();
     }
   });
 
-  P2PAdmin.CreatePostView = Backbone.View.extend({
+  CreatePostView = Backbone.View.extend({
     events: {
       'click button': 'createItem',
       'keypress :text': 'handleReturn'
     },
     initialize: function(options) {
       this.createButton = this.$('button');
-      this.createInput = this.$(':text');
-      return this.collection.on('create:from_new_item', this.afterItemCreated, this);
+      return this.createInput = this.$(':text');
     },
     handleReturn: function(ev) {
       if (ev.keyCode === ENTER_KEY) {
@@ -253,7 +254,8 @@
       return null;
     },
     createItem: function(ev) {
-      var title;
+      var req, title,
+        _this = this;
       ev.preventDefault();
       if (this.createButton.hasClass('inactive')) {
         return false;
@@ -264,16 +266,16 @@
         return;
       }
       this.createButton.addClass('inactive');
-      this.collection.createItemAndConnect(title);
+      req = this.collection.createItemAndConnect(title);
+      req.done(function() {
+        _this.createInput.val('');
+        return _this.createButton.removeClass('inactive');
+      });
       return null;
-    },
-    afterItemCreated: function() {
-      this.createInput.val('');
-      return this.createButton.removeClass('inactive');
     }
   });
 
-  P2PAdmin.MetaboxView = Backbone.View.extend({
+  MetaboxView = Backbone.View.extend({
     events: {
       'click .p2p-toggle-tabs': 'toggleTabs',
       'click .wp-tab-bar li': 'setActiveTab'
@@ -316,6 +318,12 @@
     }
   });
 
+  window.P2PAdmin = {
+    Candidate: Candidate,
+    Connection: Connection,
+    boxes: {}
+  };
+
   jQuery(function() {
     var clearVal, setVal;
     if (!jQuery('<input placeholder="1" />')[0].placeholder) {
@@ -347,7 +355,7 @@
         'src': P2PAdminL10n.spinner,
         'class': 'p2p-spinner'
       });
-      candidates = new P2PAdmin.Candidates({
+      candidates = new Candidates({
         's': '',
         'paged': 1
       });
@@ -380,25 +388,25 @@
         });
       };
       candidates.ajax_request = ajax_request;
-      connections = new P2PAdmin.Connections;
+      connections = new Connections;
       connections.ajax_request = ajax_request;
-      connectionsView = new P2PAdmin.ConnectionsView({
+      connectionsView = new ConnectionsView({
         el: $metabox.find('.p2p-connections'),
         collection: connections,
         candidates: candidates
       });
-      candidatesView = new P2PAdmin.CandidatesView({
+      candidatesView = new CandidatesView({
         el: $metabox.find('.p2p-tab-search'),
         collection: candidates,
         connections: connections,
         spinner: $spinner,
         duplicate_connections: $metabox.data('duplicate_connections')
       });
-      createPostView = new P2PAdmin.CreatePostView({
+      createPostView = new CreatePostView({
         el: $metabox.find('.p2p-tab-create-post'),
         collection: connections
       });
-      metaboxView = new P2PAdmin.MetaboxView({
+      metaboxView = new MetaboxView({
         el: $metabox,
         spinner: $spinner,
         cardinality: $metabox.data('cardinality'),
