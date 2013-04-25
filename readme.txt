@@ -1,11 +1,12 @@
 === Posts 2 Posts ===
-Contributors: scribu, ciobi
-Tags: connections, custom post types, relationships, many-to-many, users
-Requires at least: 3.5
-Tested up to: 3.5
-Stable tag: 1.5.2
-License: GPLv2 or later
-License URI: http://www.gnu.org/licenses/gpl-2.0.html
+
+Contributors: scribu, ciobi  
+Tags: connections, custom post types, relationships, many-to-many, users  
+Requires at least: 3.5  
+Tested up to: 3.5  
+Stable tag: 1.5.2  
+License: GPLv2 or later  
+License URI: http://www.gnu.org/licenses/gpl-2.0.html  
 
 Efficient many-to-many connections between posts, pages, custom post types, users.
 
@@ -36,12 +37,9 @@ Additional info can be found on the [wiki](http://github.com/scribu/wp-posts-to-
 
 == Frequently Asked Questions ==
 
-= Error on activation: "Parse error: syntax error, unexpected..." =
+= The waiting icon keeps spinning forever. =
 
-Make sure your host is running PHP 5. The only foolproof way to do this is to add this line to wp-config.php:
-
-`var_dump(PHP_VERSION);`
-<br>
+[Check for JavaScript errors](http://codex.wordpress.org/Using_Your_Browser_to_Diagnose_JavaScript_Errors). If it's an AJAX request, check its output.
 
 == Screenshots ==
 
