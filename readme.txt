@@ -4,7 +4,7 @@ Contributors: scribu, ciobi
 Tags: connections, custom post types, relationships, many-to-many, users  
 Requires at least: 3.5  
 Tested up to: 3.5  
-Stable tag: 1.5.2  
+Stable tag: 1.6
 License: GPLv2 or later  
 License URI: http://www.gnu.org/licenses/gpl-2.0.html  
 
@@ -24,6 +24,12 @@ Additionally, you can create many-to-many relationships between posts and users.
 * favorite posts of users
 * multiple authors per post
 * etc.
+
+= Support & Maintenance =
+
+I, scribu, will not be offering support (either free or paid) for this plugin anymore.
+
+If you want to help maintain the plugin, fork it [on github](https://github.com/scribu/wp-posts-to-posts) and open pull requests.
 
 Links: [**Documentation**](http://github.com/scribu/wp-posts-to-posts/wiki) | [Plugin News](http://scribu.net/wordpress/posts-to-posts) | [Author's Site](http://scribu.net)
 
@@ -50,6 +56,12 @@ Additional info can be found on the [wiki](http://github.com/scribu/wp-posts-to-
 5. Connection Types screen
 
 == Changelog ==
+
+= 1.6 =
+* introduced `p2p_candidate_title` filter
+* introduced JavaScript API
+* added Japanese translation
+* various refactorings
 
 = 1.5.2 =
 * fixed get_prev() and get_next()
