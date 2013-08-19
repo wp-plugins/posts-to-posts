@@ -140,9 +140,7 @@ abstract class scbAdminPage {
 	 *
 	 * Useful for calling $screen->add_help_tab() etc.
 	 */
-	function page_loaded() {
-		$this->form_handler();
-	}
+	function page_loaded() {}
 
 	/**
 	 * This is where the css and js go
@@ -213,7 +211,7 @@ abstract class scbAdminPage {
 
 		$this->options->set( $new_data );
 
-		add_action( 'admin_notices', array( $this, 'admin_msg' ) );
+		$this->admin_msg();
 
 		return true;
 	}
@@ -498,6 +496,8 @@ abstract class scbAdminPage {
 	}
 
 	function _page_content_hook() {
+		$this->form_handler();
+
 		$this->page_header();
 		$this->page_content();
 		$this->page_footer();
