@@ -72,7 +72,7 @@ class scbPostMetabox {
 		$error_fields = array();
 
 		if ( isset( $form_data['_error_data_' . $this->id ] ) ) {
-			$data = unserialize( $form_data['_error_data_' . $this->id ] );
+			$data = maybe_unserialize( $form_data['_error_data_' . $this->id ] );
 
 			$error_fields = $data['fields'];
 			$form_data = $data['data'];
@@ -167,14 +167,14 @@ class scbPostMetabox {
 		return $post_data;
 	}
 
-	protected function validate_post_data( $post_data ) {
+	protected function validate_post_data( $post_data, $post_id ) {
 		return false;
 	}
 
 	private function get_meta( $post_id ) {
 		$meta = get_post_custom( $post_id );
 		foreach ( $meta as $key => $values )
-			$meta[$key] = $meta[$key][0];
+			$meta[ $key ] = maybe_unserialize( $meta[ $key ][0] );
 
 		return $meta;
 	}
